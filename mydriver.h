@@ -1,0 +1,142 @@
+//----------------------------------------------------------------------------
+// mydriver.h
+//
+// Driver do sterowania silnikiem krokowym przez TMC2209 w trybie StallGuard.
+// Silnik sprzężony jest z potencjometrem wieloobrotowym.
+// Procedura: kalibracja (wykrycie skrajów) → nastawa (szukanie pozycji
+// potencjometru dającej napięcie ADC najbliższe wartości zadanej w mV).
+//----------------------------------------------------------------------------
+
+#ifndef MYDRIVER_H
+#define MYDRIVER_H
+
+#include <Arduino.h>
+#include <TMC2209.h>
+
+//============================================================================
+//  KONFIGURACJA UŻYTKOWNIKA  —  podmień wartości pod swój procesor /sprzęt
+//============================================================================
+
+// --- UART do TMC2209 ---
+#define MYDRIVER_SERIAL          Serial1
+#define MYDRIVER_SERIAL_BAUD     115200
+
+// --- Pin DIAG TMC2209 (open-drain, aktywny LOW gdy stall) ---
+//   Połącz DIAG TMC2209 → ten GPIO. Wewn. pull-up włączony w kodzie.
+#define DIAG_PIN                2 //P0.8
+#define OUT_EN_OFF              3 //P0.9
+#define OUT_EN_ON               1 //P0.7
+#define OUT_REV_OFF              9 //P0.0 
+#define OUT_REV_ON             8 //P0.5
+#define ADC_EN_ON               4 //P0.14
+#define ADC_EN_OFF              5 //P0.15
+#define ENABLE_PIN              0 //P0.6
+
+#define RELAY_DELAY 100 // ms
+
+// --- Pin ADC (środek potencjometru wieloobrotowego) ---
+#define ADC_PIN                  A0
+
+// --- Parametry ADC (dostosuj do procesora) ---
+//   ESP32:        ADC_MAX_VALUE = 4095,  ADC_REF_MV = 3300
+//   AVR (Uno itd): ADC_MAX_VALUE = 1023,  ADC_REF_MV = 5000
+//   RP2040:       ADC_MAX_VALUE = 4095,  ADC_REF_MV = 3300
+#define ADC_MAX_VALUE            4095.0
+#define ADC_REF_MV               3300
+
+// --- Opcjonalne piny DIR / STEP / EN (tryb Step/Dir) ---
+//   Używane tylko gdy przełączysz na moveUsingStepDirInterface().
+//   W trybie domyślnym (VACTUAL przez UART) nie są potrzebne.
+// #define DIR_PIN                  3
+// #define STEP_PIN                 4
+
+
+// --- Parametry silnika ---
+#define RUN_CURRENT_PERCENT      70       // prąd roboczy (%)
+#define HOLD_CURRENT_PERCENT    10       // prąd spoczynkowy (%)
+// #define STALL_GUARD_THRESHOLD   100      // próg SGTHRS (0-255); wyżej =czulej
+#define STALL_GUARD_THRESHOLD   15      // próg SGTHRS (0-255); wyżej =czulej
+#define TCOOLTHRS_VALUE         0xFFFFE  //0xFFFFF// musi być wysokie, być StallGuard aktywny
+
+// --- Prędkości (VACTUAL, microsteps / 256 cykli zegara) ---
+#define CALIBRATION_VELOCITY     30000   // prędkość podczas kalibracji
+#define SEEK_VELOCITY            30000 //10000   // prędkość podczas nastawy
+
+// --- Debounce DIAG ---
+#define STALL_DEBOUNCE_MS        700     //50  // czas potwierdzenia stalla [ms]
+#define STALL_STARTUP_SKIP_MS    1000     //200 // ignoruj DIAG przez X ms po starcie ruchu
+
+// --- Zabezpieczenia ---
+#define MAX_SEEK_STEPS           20000     // maks. liczba kroków nastawy
+
+//============================================================================
+//  KLASA MyDriver
+//============================================================================
+
+class MyDriver
+{
+    public:
+        MyDriver();
+
+        /// Inicjalizacja: konfiguruje TMC2209 (UART, prąd, StallGuard), ADC, piny.
+        /// Zwraca true jeśli TMC2209 odpowiada.
+        bool begin();
+
+        /// Kalibracja: silnik jedzie w lewo do stalla (pozycja 0), potem w prawo
+        /// do stalla. Mierzy czas przejazdu i napięcia ADC na obu skrajach.
+        /// Po kalibracji silnik zostaje na prawym skraju.
+        /// Zwraca true jeśli sukces.
+        bool calibrate();
+
+        /// Procedura nastawy: szuka pozycji potencjometru, dla której napięcie ADC
+        /// jest najbliższe target_mV. Startuje z aktualnej pozycji.
+        /// Kierunek szukania zależy od relacji cel vs aktualne napięcie.
+        /// Po znalezieniu pozycji wyłącza silnik.
+        /// Zwraca true jeśli sukcess.
+        bool seekTarget(uint16_t target_mV);
+
+        // --- Sterowanie silnikiem ---
+        void moveAtVelocity(int32_t velocity);
+        void stop();
+        void enableMotor();
+        void disableMotor();
+        void adcOnOff(bool on);
+        void outOnOff(bool on);
+        void outReverse(bool rev);
+
+        // --- Pomocnicze ---
+        uint16_t readAdcMv();       ///< Odczyt napięcia ADC [mV] (uśredniony)
+        bool isStalled();           ///< true jeśli DIAG = LOW (stall)
+        void clearStallDiagPin();
+
+        // --- Gettery (wyniki kalibracji) ---
+        uint32_t getTotalRangeMs()   const { return total_range_ms_; }
+        uint16_t getLeftAdcMv()      const { return left_adc_mv_; }
+        uint16_t getRightAdcMv()      const { return right_adc_mv_; }
+        bool     voltageIncreasesRight() const { return
+            voltage_increases_right_; }
+
+        /// Ułamek zakresu o jaki przesuwać w każdym kroku nastawy (0.01 = 1%)
+        void setStepPercent(float percent) { step_percent_ = percent; }
+        float getStepPercent() const { return step_percent_; }
+
+    private:
+        TMC2209 stepper_driver_;
+
+        // --- Wyniki kalibracji ---
+        uint32_t total_range_ms_;        // czas lewy→prawy [ms]
+        uint16_t left_adc_mv_;           // napięcie na lewym skraju [mV]
+        uint16_t right_adc_mv_;          // napięcie na prawym skraju [mV]
+        bool     voltage_increases_right_; // true: napięcie rośnie w prawo
+
+        // --- Parametry ---
+        float step_percent_;              // krok nastawy (0.01 = 1%)
+
+        // --- Metody wewnętrzne ---
+        uint32_t moveUntilStall(int32_t velocity);
+        bool moveForMsCheckStall(uint32_t duration_ms, int32_t velocity);
+        uint16_t adcToMv(uint16_t raw);
+};
+
+#endif // MYDRIVER_H
+
