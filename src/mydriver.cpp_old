@@ -6,8 +6,16 @@
 // ----------------------------------------------------------------------------
 
 #include "mydriver.h"
+#include <xmc_usic.h> 
 
 #define PRINT(x) Serial.println(x); Serial.flush()
+
+
+
+
+// Stała pomocnicza definiująca czas trwania impulsu (w mikrosekundach) dla pinu STEP.
+// Dopasowana do prędkości 30000 (częstotliwość impulsów ~ krok co 33 us).
+const uint32_t STEP_PULSE_DELAY_US = 100; //33 
 
 MyDriver::MyDriver()
 {
@@ -16,6 +24,7 @@ MyDriver::MyDriver()
     right_adc_mv_          = 0;
     voltage_increases_right_ = true;
     step_percent_          = 0.01;   // domyślnie 1%
+    total_calibration_steps_ = 0; // Inicjalizacja nowej zmiennej
 }
 
 
@@ -86,7 +95,7 @@ bool MyDriver::begin()
 
     // --- Opcjonalne piny DIR / STEP / EN ---
     // pinMode(DIR_PIN, OUTPUT);
-    // pinMode(STEP_PIN, OUTPUT);
+    pinMode(STEP_PIN, OUTPUT);
     pinMode(ENABLE_PIN, OUTPUT);
     pinMode(OUT_EN_ON, OUTPUT);
     pinMode(OUT_EN_OFF, OUTPUT);
@@ -94,6 +103,7 @@ bool MyDriver::begin()
     pinMode(OUT_REV_OFF, OUTPUT);
     pinMode(ADC_EN_ON, OUTPUT);
     pinMode(ADC_EN_OFF, OUTPUT);
+    //USIC0_CH0->DX0CR = (USIC0_CH0->DX0CR & ~USIC_CH_DX0CR_DSEL_Msk) | (1 << USIC_CH_DX0CR_DSEL_Pos); // Odpiecie pinu step od UART0
 
     outOnOff(false);
     adcOnOff(false);
@@ -129,7 +139,10 @@ bool MyDriver::begin()
     stepper_driver_.enableStealthChop();
 
     // --- Mikrokroki: 256 (najpłynniej) ---
-    stepper_driver_.setMicrostepsPerStep(256);//256
+    stepper_driver_.setMicrostepsPerStep(32);//256
+
+    // Włączenie interfejsu STEP/DIR w strukturze sterownika (blokuje wewnętrzny rejestr VACTUAL)
+    stepper_driver_.moveUsingStepDirInterface(); 
 
     // --- Wyłącz silnik na start ---
     stepper_driver_.disable();
@@ -152,6 +165,9 @@ bool MyDriver::calibrate()
     adcOnOff(true);
     outOnOff(false);
 
+    // Zerowanie licznika kroków przed rozpoczęciem pomiaru
+    total_calibration_steps_ = 0; 
+
     // --- Krok 1: jedź w prawo (dodatnia prędkość) do stalla ---
     moveUntilStall(CALIBRATION_VELOCITY);
     delay(500);
@@ -167,14 +183,17 @@ bool MyDriver::calibrate()
     delay(500);
     left_adc_mv_ = readAdcMv();
     PRINT("LEFT ADC:"); PRINT(left_adc_mv_);
+    PRINT("TOTAL STEPS:"); PRINT(total_calibration_steps_);
 
 
     // --- Krok 3: określ kierunek wzrostu napięcia ---
     voltage_increases_right_ = (right_adc_mv_ >= left_adc_mv_);
     PRINT("RIGHT INCREASE:"); PRINT(voltage_increases_right_);
 
-    // --- Wyłącz silnik po kalibracji ---
-    stepper_driver_.moveAtVelocity(0);
+    // Sztywne zatrzymanie generowania impulsów
+    digitalWrite(STEP_PIN, LOW);
+
+    // // --- Wyłącz silnik po kalibracji ---
     stepper_driver_.disable();
 
     adcOnOff(false);
@@ -185,7 +204,7 @@ bool MyDriver::calibrate()
 //  seekTarget() — znajdź pozycję potencjometru z napięciem ~ target_mV
 // ============================================================================
 
-bool MyDriver::seekTarget(uint16_t target_mV)
+bool MyDriver::seekTarget_old(uint16_t target_mV)
 {
     if (!stepper_driver_.isSetupAndCommunicating())
     {
@@ -233,37 +252,50 @@ bool MyDriver::seekTarget(uint16_t target_mV)
 
     // --- Pętla nastawy ---
     uint16_t best_mv = current_mv;
-    int32_t  best_velocity = velocity;   // kierunek, w którym znaleziono najlepsze
+    // int32_t  best_velocity = velocity;   // kierunek, w którym znaleziono najlepsze
     bool     overshot = false;
 
     PRINT(velocity);
     for (uint16_t i = 0; i < MAX_SEEK_STEPS; ++i)
     {
-        // Wykonaj krok (ruch przez step_ms)
-        stepper_driver_.moveAtVelocity(velocity);
-        delay(step_ms);
-        stepper_driver_.moveAtVelocity(0);
-        delay(250);  // 50 czas na ustalenie napięcia // PATLAS
+       
+        // WYKONAJ KROK: ruch przez dokładnie wyliczony czas step_ms za pomocą pinu STEP
+        // UART wybiera kierunek poprzez przekazanie znaku prędkości do rejestru TMC
+        //stepper_driver_.moveAtVelocity(velocity); 
+        if (velocity < 0)
+        {
+            stepper_driver_.enableInverseMotorDirection();
+        }
+        else
+        {
+            stepper_driver_.disableInverseMotorDirection();
+        }
+        
+        uint32_t step_start_ms = millis();
+        while ((millis() - step_start_ms) < step_ms)
+        {
+            digitalWrite(STEP_PIN, HIGH);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+            digitalWrite(STEP_PIN, LOW);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+        }
+        
+        delay(30);  // 50 czas na ustalenie napięcia // PATLAS
 
         // Odczytaj napięcie
         current_mv = readAdcMv();
 
-        // Sprawdź czy przekroczyliśmy wartość zadaną
-        bool was_below = (best_mv < target_mV);
-        bool now_above = (current_mv >= target_mV);
-
         // Aktualizuj najlepsze przybliżenie
         uint16_t best_err   = (best_mv > target_mV) ? (best_mv - target_mV) : (target_mV - best_mv);
         uint16_t current_err = (current_mv > target_mV) ? (current_mv - target_mV) : (target_mV - current_mv);
-        PRINT(current_mv);
-        PRINT(current_err);
-        PRINT(best_err);
-        PRINT(i);
+        // PRINT(current_mv);
+        // PRINT(current_err);
+        // PRINT(best_err);
+        // PRINT(i);
 
         if (current_err < best_err)
         {
             best_mv = current_mv;
-            best_velocity = velocity;
         }
 
         // Czy przekroczyliśmy cel?
@@ -288,36 +320,243 @@ bool MyDriver::seekTarget(uint16_t target_mV)
 
         if (overshot)
         {
-            // Cofnij o jeden krok w przeciwnym kierunku
-            stepper_driver_.moveAtVelocity(-velocity);
-            delay(step_ms);
-            stepper_driver_.moveAtVelocity(0);
-            delay(50);
+           // COFNIĘCIE O JEDEN KROK: UART odwraca kierunek, pin STEP wykonuje sekwencję ruchu
+            if (-velocity < 0)
+            {
+                stepper_driver_.enableInverseMotorDirection();
+            }
+            else
+            {
+                stepper_driver_.disableInverseMotorDirection();
+            }
+            
+            uint32_t reverse_start_ms = millis();
+            while ((millis() - reverse_start_ms) < step_ms)
+            {
+                digitalWrite(STEP_PIN, HIGH);
+                delayMicroseconds(STEP_PULSE_DELAY_US);
+                digitalWrite(STEP_PIN, LOW);
+                delayMicroseconds(STEP_PULSE_DELAY_US);
+            }
+            //delay(50); //PATLAS UNCOMMENT
 
-            // Odczytaj po cofnięciu
             current_mv = readAdcMv();
             uint16_t err_after = (current_mv > target_mV) ? (current_mv - target_mV) : (target_mV - current_mv);
 
-            // Wybierz lepszą pozycję: przed cofnięciem czy po
             if (err_after < best_err)
             {
                 best_mv = current_mv;
             }
+
             PRINT("Voltage set:");
             PRINT(best_mv);
-            break;  // znaleźliśmy najlepsze przybliżenie
+            break;   // znaleźliśmy najlepsze przybliżenie
         }
 
         // Sprawdź stall (zabezpieczenie)
-        if (isStalled())
-        {
-            PRINT("STALLED!");
-            break;
-        }
+        // if (isStalled())
+        // {
+        //     PRINT("STALLED!");
+        //     break;
+        // }
     }
 
     // --- Wyłącz silnik po znalezieniu pozycji ---
-    stepper_driver_.moveAtVelocity(0);
+    digitalWrite(STEP_PIN, LOW);
+    stepper_driver_.disable();
+    adcOnOff(false);
+
+    return true;
+}
+
+bool MyDriver::seekTarget(uint16_t target_mV)
+{
+    if (!stepper_driver_.isSetupAndCommunicating())
+    {
+        PRINT("Communication error");
+        return false;
+    }
+
+    if (total_range_ms_ == 0)
+    {
+        PRINT("No calibration");
+        return false;
+    }
+
+    stepper_driver_.enable();
+    
+    // KLUCZOWE: Wyzerowanie rejestru VACTUAL, aby sterownik 
+    // słuchał fizycznego pinu STEP, a nie komend UART
+    stepper_driver_.moveAtVelocity(0); 
+    
+    adcOnOff(true);
+
+    // --- Oblicz czas jednego kroku nastawy zgrubnej ---
+    uint32_t step_ms = (uint32_t)(total_range_ms_ * step_percent_);
+    PRINT("Step ms:");
+    PRINT(step_ms);
+    if (step_ms == 0) step_ms = 1;
+
+    // Odczytaj aktualne napięcie
+    uint16_t current_mv = readAdcMv();
+
+    // Wybierz początkowy kierunek szukania zgrubnego
+    int32_t velocity;
+    if (current_mv < target_mV)
+    {
+        PRINT("Voltage lower than expected");
+        velocity = voltage_increases_right_ ? SEEK_VELOCITY : -SEEK_VELOCITY;
+    }
+    else
+    {
+        PRINT("Voltage higher than expected");
+        velocity = voltage_increases_right_ ? -SEEK_VELOCITY : SEEK_VELOCITY;
+    }
+
+    uint16_t best_mv = current_mv;
+    bool overshot = false;
+
+    PRINT(velocity);
+    
+    // =========================================================================
+    // FAZA 1: FAZA ZGRUBNA (Szukanie dużymi krokami do momentu overshot)
+    // =========================================================================
+    for (uint16_t i = 0; i < MAX_SEEK_STEPS; ++i)
+    {
+        if (velocity < 0)
+        {
+            stepper_driver_.enableInverseMotorDirection();
+        }
+        else
+        {
+            stepper_driver_.disableInverseMotorDirection();
+        }
+        
+        // Wykonaj zgrubny krok czasowy (step_ms)
+        uint32_t step_start_ms = millis();
+        while ((millis() - step_start_ms) < step_ms)
+        {
+            digitalWrite(STEP_PIN, HIGH);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+            digitalWrite(STEP_PIN, LOW);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+        }
+        
+        delay(30); // czas na ustalenie napięcia
+
+        current_mv = readAdcMv();
+
+        uint16_t best_err   = (best_mv > target_mV) ? (best_mv - target_mV) : (target_mV - best_mv);
+        uint16_t current_err = (current_mv > target_mV) ? (current_mv - target_mV) : (target_mV - current_mv);
+
+        if (current_err < best_err)
+        {
+            best_mv = current_mv;
+        }
+
+        // Sprawdzenie warunku przekroczenia (overshot)
+        if (velocity > 0 && voltage_increases_right_ && current_mv >= target_mV) overshot = true;
+        else if (velocity > 0 && !voltage_increases_right_ && current_mv <= target_mV) overshot = true;
+        else if (velocity < 0 && voltage_increases_right_ && current_mv <= target_mV) overshot = true;
+        else if (velocity < 0 && !voltage_increases_right_ && current_mv >= target_mV) overshot = true;
+
+        if (overshot)
+        {
+            PRINT("Overshot detected. Entering Fine Tuning phase.");
+            break; // Wychodzimy z pętli zgrubnej, przechodzimy do Fazy 2
+        }
+    }
+
+    // =========================================================================
+    // FAZA 2: FAZA PRECYZYJNA (Mikro-kroki góra/dół dla idealnego dopasowania)
+    // =========================================================================
+    // Definiujemy margines tolerancji (np. 3 mV), w którym uznajemy wartość za idealną
+    const uint16_t FINE_TUNE_TOLERANCE_MV = 3; 
+    const uint16_t MAX_FINE_TUNE_STEPS = 300;   // Zabezpieczenie przed nieskończoną pętlą
+    
+    // Liczba pojedynczych mikrokroków na jedną iterację korekty precyzyjnej
+    // Możesz zwiększyć do np. 2 lub 4, jeśli potencjometr reaguje zbyt wolno
+    const uint8_t MICROSTEPS_PER_PULSE = 6;     
+    //delay(100);
+    for (uint16_t j = 0; j < MAX_FINE_TUNE_STEPS; ++j)
+    {
+        delay(100);
+        current_mv = readAdcMv();
+        uint16_t current_err = (current_mv > target_mV) ? (current_mv - target_mV) : (target_mV - current_mv);
+
+        // Jeśli błąd mieści się w założonej tolerancji, kończymy dopasowanie
+        if (current_err <= FINE_TUNE_TOLERANCE_MV)
+        {
+            best_mv = current_mv;
+            PRINT("Target achieved within tolerance.");
+            PRINT(j);
+            break;
+        }
+
+        // Aktualizujemy najlepszy globalny odczyt
+        uint16_t best_err = (best_mv > target_mV) ? (best_mv - target_mV) : (target_mV - best_mv);
+        if (current_err < best_err)
+        {
+            best_mv = current_mv;
+        }
+
+        // Decyzja o kierunku mikro-korekty
+        bool move_right = false;
+        if (current_mv < target_mV)
+        {
+            // Napięcie za niskie -> musimy je podnieść
+            // Jeśli napięcie rośnie w prawo -> jedziemy w prawo. W przeciwnym wypadku w lewo.
+            move_right = voltage_increases_right_;
+        }
+        else
+        {
+            // Napięcie za wysokie -> musimy je obniżyć
+            // Jeśli napięcie rośnie w prawo -> jedziemy w lewo. W przeciwnym wypadku w prawo.
+            move_right = !voltage_increases_right_;
+        }
+
+        // Ustawienie kierunku dla fazy precyzyjnej
+        if (move_right)
+        {
+            // Ruch w prawo (dodatnia prędkość logiczna)
+            stepper_driver_.disableInverseMotorDirection();
+        }
+        else
+        {
+            // Ruch w lewo (ujemna prędkość logiczna)
+            stepper_driver_.enableInverseMotorDirection();
+        }
+
+        // Wykonanie bardzo małego, precyzyjnego ruchu (kilka mikrokroków)
+        for (uint8_t pulse = 0; pulse < MICROSTEPS_PER_PULSE; ++pulse)
+        {
+            digitalWrite(STEP_PIN, HIGH);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+            digitalWrite(STEP_PIN, LOW);
+            delayMicroseconds(STEP_PULSE_DELAY_US);
+        }
+
+        // Krótkie opóźnienie, aby napięcie na ślizgaczu potencjometru i przetworniku ADC się ustabilizowało
+        delay(15); 
+        
+        // Sprawdzamy, czy mikro-korekta nie zaczęła pogarszać wyniku (odbijanie od celu)
+        uint16_t new_mv = readAdcMv();
+        uint16_t new_err = (new_mv > target_mV) ? (new_mv - target_mV) : (target_mV - new_mv);
+        
+        // Jeśli błąd zaczął rosnąć w porównaniu do poprzedniego mikro-kroku, 
+        // oznacza to limit mechaniczny/rozdzielczości potencjometru. Przerywamy.
+        // if (new_err > current_err && current_err <= (FINE_TUNE_TOLERANCE_MV * 3))
+        // {
+        //     PRINT("Fine tuning hit hardware limit resolution.");
+        //     break;
+        // }
+    }
+
+    PRINT("Final Voltage set:");
+    PRINT(best_mv);
+
+    // --- Wyłącz silnik po znalezieniu pozycji ---
+    digitalWrite(STEP_PIN, LOW);
     stepper_driver_.disable();
     adcOnOff(false);
 
@@ -330,14 +569,27 @@ bool MyDriver::seekTarget(uint16_t target_mV)
 
 uint32_t MyDriver::moveUntilStall(int32_t velocity)
 {
-    stepper_driver_.moveAtVelocity(velocity);
+    if (velocity < 0)
+    {
+        stepper_driver_.enableInverseMotorDirection();
+    }
+    else
+    {
+        stepper_driver_.disableInverseMotorDirection();
+    }
+
 
     // Czas rozbiegu — ignoruj DIAG przez pierwsze STALL_STARTUP_SKIP_MS
     uint32_t start_ms = millis();
+    // Rozbieg silnika generowany sprzętowo przez pin STEP
     while ((millis() - start_ms) < STALL_STARTUP_SKIP_MS)
     {
-        // czekaj na rozbieg
+        digitalWrite(STEP_PIN, HIGH);
+        delayMicroseconds(STEP_PULSE_DELAY_US);
+        digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(STEP_PULSE_DELAY_US);
     }
+    clearStallDiagPin();
 
     // Czekaj na stall (DIAG = HIGH)
     uint32_t stall_start = 0;
@@ -345,14 +597,26 @@ uint32_t MyDriver::moveUntilStall(int32_t velocity)
 
     while (true)
     {
+        // Generujemy dokładnie jeden fizyczny mikrokrok pętli głównej
+        digitalWrite(STEP_PIN, HIGH);
+        delayMicroseconds(STEP_PULSE_DELAY_US);
+        digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(STEP_PULSE_DELAY_US);
+
+        // ZADANIE: Jeśli kręcimy w lewo (ujemna prędkość), inkrementujemy licznik kroków kalibracji
+        if (velocity < 0)
+        {
+            total_calibration_steps_++;
+        }
+
         // PRINT(stepper_driver_.getStallGuardResult());
         int dp = digitalRead(DIAG_PIN);
-        // PRINT("DIAG PIN: ");
-        // PRINT(dp);
+        //PRINT("DIAG PIN: ");
+        //PRINT(dp);
         // delay(500);
         if (dp == HIGH)
         {
-            //PRINT("DIAG LOW");
+            //PRINT("DIAG HIGH");
             if (stall_start == 0)
             {
                 stall_start = millis();
@@ -365,10 +629,10 @@ uint32_t MyDriver::moveUntilStall(int32_t velocity)
             }
             clearStallDiagPin();
         }
-        else
-        {
-            stall_start = 0;  // reset debounce
-        }
+        // else
+        // {
+        //     stall_start = 0;  // reset debounce
+        // }
 
         // Zabezpieczenie timeout (max 60 s)
         if ((millis() - start_ms) > 60000)
@@ -378,7 +642,7 @@ uint32_t MyDriver::moveUntilStall(int32_t velocity)
     }
     clearStallDiagPin();
     uint32_t ret = (millis() - start_ms);
-    stepper_driver_.moveAtVelocity(0);
+    digitalWrite(STEP_PIN, LOW);
     delay(300);
 
     return ret;

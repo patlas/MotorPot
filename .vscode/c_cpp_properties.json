@@ -1,0 +1,110 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/home/patlas/Documents/PlatformIO/Projects/MotrPot/include",
+                "/home/patlas/Documents/PlatformIO/Projects/MotrPot/src",
+                "/home/patlas/Documents/PlatformIO/Projects/MotrPot/.pio/libdeps/xmc1100_xmc2go/TMC2209/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/NN/Include",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/DSP/Include",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/Include",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/LIBS",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/XMCLib/inc",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Class",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Class/Device",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Common",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Core",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Core/XMC4000",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/avr",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/variants/XMC1100/config/XMC1100_XMC2GO",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/variants/XMC1100",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/BGT24LTR11-Pulsed-Doppler-Radar/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DMA/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DSP/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DeviceControlXMC/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/I2S/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/IFX9201/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/LED/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Mouse/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/OneWire/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/RTC/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Radar/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/SPI/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/USB/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Ultrasonic/src",
+                "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Wire/src",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/home/patlas/Documents/PlatformIO/Projects/MotrPot/include",
+                    "/home/patlas/Documents/PlatformIO/Projects/MotrPot/src",
+                    "/home/patlas/Documents/PlatformIO/Projects/MotrPot/.pio/libdeps/xmc1100_xmc2go/TMC2209/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/NN/Include",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/DSP/Include",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/CMSIS/Include",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/LIBS",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/xmc_lib/XMCLib/inc",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Class",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Class/Device",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Common",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Core",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/usblib/Core/XMC4000",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/cores/avr",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/variants/XMC1100/config/XMC1100_XMC2GO",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/variants/XMC1100",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/BGT24LTR11-Pulsed-Doppler-Radar/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DMA/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DSP/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/DeviceControlXMC/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/I2S/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/IFX9201/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/LED/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Mouse/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/OneWire/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/RTC/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Radar/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/SPI/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/USB/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Ultrasonic/src",
+                    "/home/patlas/.platformio/packages/framework-arduinoxmc/libraries/Wire/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "F_CPU=32000000L",
+                "XMC1100",
+                "ARM_MATH_CM0",
+                "_INIT_DECLARATION_REQUIRED",
+                "PLATFORMIO=60119",
+                "XMC1100_XMC2GO",
+                "XMC1100_T038x0064",
+                "SERIAL_SOURCE_PC",
+                "NUM_SERIAL=2",
+                "ARDUINO_ARCH_ARM",
+                "ARDUINO=10805",
+                ""
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11",
+            "compilerPath": "/home/patlas/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin/arm-none-eabi-gcc",
+            "compilerArgs": [
+                "-mthumb",
+                "-mcpu=cortex-m0",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}

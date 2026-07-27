@@ -24,10 +24,11 @@
 // --- Pin DIAG TMC2209 (open-drain, aktywny LOW gdy stall) ---
 //   Połącz DIAG TMC2209 → ten GPIO. Wewn. pull-up włączony w kodzie.
 #define DIAG_PIN                2 //P0.8
+#define STEP_PIN                6 //P2.0
 #define OUT_EN_OFF              3 //P0.9
 #define OUT_EN_ON               1 //P0.7
-#define OUT_REV_OFF              9 //P0.0 
-#define OUT_REV_ON             8 //P0.5
+#define OUT_REV_OFF             9 //P0.0 
+#define OUT_REV_ON              8 //P0.5
 #define ADC_EN_ON               4 //P0.14
 #define ADC_EN_OFF              5 //P0.15
 #define ENABLE_PIN              0 //P0.6
@@ -52,18 +53,18 @@
 
 
 // --- Parametry silnika ---
-#define RUN_CURRENT_PERCENT      70       // prąd roboczy (%)
+#define RUN_CURRENT_PERCENT      80       // prąd roboczy (%)
 #define HOLD_CURRENT_PERCENT    10       // prąd spoczynkowy (%)
 // #define STALL_GUARD_THRESHOLD   100      // próg SGTHRS (0-255); wyżej =czulej
-#define STALL_GUARD_THRESHOLD   15      // próg SGTHRS (0-255); wyżej =czulej
+#define STALL_GUARD_THRESHOLD   20      //15 próg SGTHRS (0-255); wyżej =czulej
 #define TCOOLTHRS_VALUE         0xFFFFE  //0xFFFFF// musi być wysokie, być StallGuard aktywny
 
 // --- Prędkości (VACTUAL, microsteps / 256 cykli zegara) ---
-#define CALIBRATION_VELOCITY     30000   // prędkość podczas kalibracji
+#define CALIBRATION_VELOCITY     50000   // prędkość podczas kalibracji
 #define SEEK_VELOCITY            30000 //10000   // prędkość podczas nastawy
 
 // --- Debounce DIAG ---
-#define STALL_DEBOUNCE_MS        700     //50  // czas potwierdzenia stalla [ms]
+#define STALL_DEBOUNCE_MS        10     //700  // czas potwierdzenia stalla [ms]
 #define STALL_STARTUP_SKIP_MS    1000     //200 // ignoruj DIAG przez X ms po starcie ruchu
 
 // --- Zabezpieczenia ---
@@ -94,6 +95,8 @@ class MyDriver
         /// Po znalezieniu pozycji wyłącza silnik.
         /// Zwraca true jeśli sukcess.
         bool seekTarget(uint16_t target_mV);
+        bool seekTarget_old(uint16_t target_mV);
+
 
         // --- Sterowanie silnikiem ---
         void moveAtVelocity(int32_t velocity);
@@ -119,6 +122,7 @@ class MyDriver
         /// Ułamek zakresu o jaki przesuwać w każdym kroku nastawy (0.01 = 1%)
         void setStepPercent(float percent) { step_percent_ = percent; }
         float getStepPercent() const { return step_percent_; }
+        uint32_t getTotalCalibrationSteps() const { return total_calibration_steps_; }
 
     private:
         TMC2209 stepper_driver_;
@@ -128,6 +132,8 @@ class MyDriver
         uint16_t left_adc_mv_;           // napięcie na lewym skraju [mV]
         uint16_t right_adc_mv_;          // napięcie na prawym skraju [mV]
         bool     voltage_increases_right_; // true: napięcie rośnie w prawo
+
+        uint32_t total_calibration_steps_;
 
         // --- Parametry ---
         float step_percent_;              // krok nastawy (0.01 = 1%)
