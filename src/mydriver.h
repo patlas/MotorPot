@@ -103,6 +103,7 @@ public:
     void adcOnOff(bool on);
     void outReverse(bool rev);
     void outOnOff(bool on);
+    uint16_t readAdcMv();
 
 private:
     TMC2209 stepper_driver_;
@@ -117,7 +118,7 @@ private:
     uint32_t moveUntilStall(MotorDirection dir);
     bool     executeSteps(uint32_t steps_to_move, MotorDirection dir, StepCounterBounds& bounds, bool handle_stall, uint32_t delay_us);
     
-    uint16_t readAdcMv();
+
     uint16_t adcToMv(uint16_t raw);
     void     clearStallDiagPin();
 };

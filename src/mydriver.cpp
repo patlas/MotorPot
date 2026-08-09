@@ -207,7 +207,9 @@ bool MyDriver::calibrate()
 
     stepper_driver_.enable();
     adcOnOff(true);
-    outOnOff(false);
+    //outOnOff(false); // PATLAS - uncomment after testing
+    outOnOff(true); // PATLAS for testing - comment in release
+
 
     bounds_.lower_bound = 0;
     bounds_.upper_bound = 0xFFFFFFFF;

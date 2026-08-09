@@ -7,6 +7,7 @@
 
 const unsigned long TIMEOUT_MS = 2*60*60*1000;
 unsigned long last_active_time = 0;
+bool debugMode = false;
 
 String inputString = "";      // String to hold incoming serial data
 bool stringComplete = false;  // Flag for when a full command is received
@@ -33,6 +34,8 @@ void cmd_get_help()
   Serial.println("ON - enable output)");
   Serial.println("ADC - enable ADC");
   Serial.println("SETV - set target mV");
+  Serial.println("DBG - enable DBG");
+
 }
 
 void cmd_unrecognized(const char *command)
@@ -87,6 +90,25 @@ void cmd_set_rev()
   {
     driver.outReverse(false);
     Serial.println("OUT REV = 0");
+  }
+}
+
+void cmd_set_dbg()
+{
+  char* str = term.getNext();
+  if (str == NULL)
+  {
+    Serial.println("ERROR: NO ARGUMENT");
+    return;
+  }
+  if (atoi(str)){
+    debugMode = true;
+    Serial.println("DBG = 1");
+  } 
+  else 
+  {
+    debugMode = false;
+    Serial.println("DBG = 0");
   }
 }
 
@@ -180,7 +202,7 @@ void cmd_set_Vout()
 void set_digipot_voltage(int16_t target_mV)
 {
   driver.outOnOff(true); // TO REMOVE temporary testing
-  driver.outOnOff(false); // disable output
+  //driver.outOnOff(false); // disable output
   driver.adcOnOff(true); // enable adc
   // reverse output if necessary
   if (target_mV < 0) driver.outReverse(true);
@@ -230,6 +252,7 @@ void setup()
   term.addCommand("ON", cmd_set_out);
   term.addCommand("ADC", cmd_set_adc);
   term.addCommand("SETV", cmd_set_target_voltage);
+  term.addCommand("DBG", cmd_set_dbg);
   term.addCommand("SETECHO", cmd_set_echo);
   term.addCommand("HELP", cmd_get_help);
   term.setPostCommandHandler(set_timeout);
@@ -289,14 +312,17 @@ void loop()
   timeout_handler();
   term.readSerial();
 
-  // if (digitalRead(DIAG_PIN) == HIGH) {
-  //   g_isStall = true;  // Zbocze narastające -> ustawiamy zmienną
-  //   digitalWrite(LED1, HIGH);
-  // } 
+// if (digitalRead(DIAG_PIN) == HIGH) {
+//   g_isStall = true;  // Zbocze narastające -> ustawiamy zmienną
+//   digitalWrite(LED1, HIGH);
+// } 
 //  digitalToggle(LED2);
 //  delay(500);
 //  diagPin_isr(); // pseudo ISR
-  // Serial.print("Analog: ");
-  // Serial.println(driver.readAdcMv());
-  // delay(500);
+  if (debugMode)
+  {
+    Serial.print("Analog: ");
+    Serial.println(driver.readAdcMv());
+    delay(500);
+  }
 }
