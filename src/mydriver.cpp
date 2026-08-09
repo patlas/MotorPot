@@ -302,6 +302,7 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
     // FAZA 2: PRECYZYJNE POZYCJONOWANIE (Paczki po 5 kroków do uzyskania błędu < X%)
     // =========================================================================
     PRINT("Uruchamianie fazy precyzyjnej z kryterium procentowym...");
+    PRINT("Final trim:"); PRINT(ultraFineTunning);
 
     uint16_t current_mv = readAdcMv();
     uint16_t best_mv = current_mv;
@@ -359,7 +360,7 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
             {
                 PRINT("Poprzedni krok był lepszy. Wycofywanie paczki 5 kroków.");
                 MotorDirection undo_dir = (tune_dir == MotorDirection::Right) ? MotorDirection::Left : MotorDirection::Right;
-                executeSteps(5, undo_dir, bounds_, false, FINE_DELAY_US);
+                executeSteps(30, undo_dir, bounds_, false, FINE_DELAY_US);
                 delay(15);
                 best_mv = readAdcMv();
             }

@@ -35,6 +35,7 @@ void cmd_get_help()
   Serial.println("ADC - enable ADC");
   Serial.println("SETV - set target mV");
   Serial.println("DBG - enable DBG");
+  Serial.println("CAL - calibrate device");
 
 }
 
@@ -226,16 +227,22 @@ void cmd_set_target_voltage()
     Serial.println("ERROR: NO ARGUMENT");
     return;
   }
-  if (atoi(voltage_str)){
+  if (atoi(voltage_str))
+  {
     target_voltage = atoi(voltage_str);
     set_digipot_voltage(target_voltage);
     Serial.println("OK");
-      } else {
+  } 
+  else {
     Serial.println("ERROR: INVALID ARGUMENT");
   }
 }
 
-
+void cmd_set_calibrate()
+{
+  Serial.println("Calibration ...");
+  driver.calibrate();
+}
 
 
 
@@ -253,8 +260,11 @@ void setup()
   term.addCommand("ADC", cmd_set_adc);
   term.addCommand("SETV", cmd_set_target_voltage);
   term.addCommand("DBG", cmd_set_dbg);
+  term.addCommand("CAL", cmd_set_calibrate);
+
   term.addCommand("SETECHO", cmd_set_echo);
   term.addCommand("HELP", cmd_get_help);
+  
   term.setPostCommandHandler(set_timeout);
   term.setSerialEcho(false);
 
@@ -274,10 +284,11 @@ void setup()
   Serial.println(ret);
   Serial.flush();
 
+  // PATLAS - consider if only calibrate over cmd
   ret = driver.calibrate();
   Serial.print("Driver calibration: ");
   Serial.println(ret);
-
+ /////////////////
 
   /* TO REMOVE
     // pinMode(DIAG_PIN, INPUT_PULLUP);

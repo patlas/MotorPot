@@ -42,21 +42,10 @@
 #define STALL_GUARD_THRESHOLD   15      //15 próg SGTHRS (0-255); wyżej =czulej
 #define TCOOLTHRS_VALUE         0xFFFFE  //0xFFFFF// musi być wysokie, być StallGuard aktywny
 
-// --- Prędkości (VACTUAL, microsteps / 256 cykli zegara) ---
-#define CALIBRATION_VELOCITY     50000   // prędkość podczas kalibracji
-#define SEEK_VELOCITY            30000 //10000   // prędkość podczas nastawy
-
-// --- Debounce DIAG ---
-// #define STALL_DEBOUNCE_MS        10     //700  // czas potwierdzenia stalla [ms]
-// #define STALL_STARTUP_SKIP_MS    1000     //200 // ignoruj DIAG przez X ms po starcie ruchu
-
-// --- Zabezpieczenia ---
-// #define MAX_SEEK_STEPS           500 //20000     // maks. liczba kroków nastawy
-
 // --- Konfiguracja Prędkości (Opóźnienia impulsów w mikrosekundach) ---
-#define STEP_PULSE_DELAY_US      5//33  // Domyślna prędkość bazowa (np. dla kalibracji)
-#define COARSE_DELAY_US          33  // Prędkość fazy zgrubnej (mniejsza wartość = szybszy ruch)
-#define FINE_DELAY_US            100 // Prędkość fazy precyzyjnej (większa wartość = wolniejszy ruch)
+#define STEP_PULSE_DELAY_US      2//5//33  // Domyślna prędkość bazowa (np. dla kalibracji)
+#define COARSE_DELAY_US          5//33  // Prędkość fazy zgrubnej (mniejsza wartość = szybszy ruch)
+#define FINE_DELAY_US            15//100 // Prędkość fazy precyzyjnej (większa wartość = wolniejszy ruch)
 
 // --- Parametry Algorytmu Pozycjonowania (Liczba kroków i limity) ---
 #define COARSE_MARGIN_STEPS      15  // Margines bezpieczeństwa (10-20 kroków) przed celem liniowym
