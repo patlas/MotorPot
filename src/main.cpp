@@ -184,26 +184,9 @@ void cmd_set_Vout()
   }
 }
 
-// void set_digipot_voltage(int16_t target_mV)
-// {
-//   driver.outOnOff(true); // TO REMOVE temporary testing
-// //  driver.outOnOff(false); // disable output
-//   driver.adcOnOff(true); // enable adc
-//   // reverse output if necessary
-//   if (target_mV < 0) driver.outReverse(true);
-//   else driver.outReverse(false);
-//   uint16_t absVoltage = abs(target_mV);
-//   delay(1000);
-//   driver.seekTarget(absVoltage);
-//   driver.outOnOff(true);
-//   //driver.seekTarget(absVoltage);
-//   //driver.adcOnOff(false);
-// }
-
 void set_digipot_voltage(int16_t target_mV)
 {
-  driver.outOnOff(true); // TO REMOVE temporary testing
-  //driver.outOnOff(false); // disable output
+  driver.outOnOff(false); // disable output
   driver.adcOnOff(true); // enable adc
   // reverse output if necessary
   if (target_mV < 0) driver.outReverse(true);
@@ -215,6 +198,7 @@ void set_digipot_voltage(int16_t target_mV)
     driver.outOnOff(true);
     driver.seekTarget(absVoltage, true);
   }
+
 }
 
 
@@ -240,8 +224,9 @@ void cmd_set_target_voltage()
 
 void cmd_set_calibrate()
 {
-  Serial.println("Calibration ...");
+  //Serial.println("Calibration ...");
   driver.calibrate();
+  Serial.println("OK");
 }
 
 

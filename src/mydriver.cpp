@@ -33,6 +33,7 @@ MyDriver::MyDriver()
     bounds_.lower_bound = 0;
     bounds_.upper_bound = 0xFFFFFFFF; 
     bounds_.current_steps = 0;
+    isCallibrated = false;
 }
 
 void MyDriver::adcOnOff(bool on)
@@ -238,11 +239,17 @@ bool MyDriver::calibrate()
 
     stepper_driver_.disable();
     adcOnOff(false);
+    isCallibrated = true;
     return true;
 }
 
 bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
 {
+    if (isCallibrated == false)
+    {
+        calibrate();
+    };
+
     if (!stepper_driver_.isSetupAndCommunicating()) return false;
     if (total_calibration_steps_ == 0) return false;
 

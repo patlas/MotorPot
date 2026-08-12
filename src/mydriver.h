@@ -101,6 +101,7 @@ private:
     uint16_t left_adc_mv_;
     uint16_t right_adc_mv_;
     float    step_percent_;
+    bool isCallibrated;
 
     StepCounterBounds bounds_; 
 
