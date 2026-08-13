@@ -193,12 +193,18 @@ void set_digipot_voltage(int16_t target_mV)
   else driver.outReverse(false);
   uint16_t absVoltage = abs(target_mV);
   delay(1000);
-  if (driver.seekTarget(absVoltage))
+  int16_t ret = driver.seekTarget(absVoltage);
+  if (ret != -1)
   {
     driver.outOnOff(true);
-    driver.seekTarget(absVoltage, true);
+    ret = driver.seekTarget(absVoltage, true);
+    Serial.print("OK:");
+    Serial.println(ret);
+    return;
   }
-
+  driver.outOnOff(false);
+  Serial.println("ERR:0");
+  return;
 }
 
 

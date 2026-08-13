@@ -80,7 +80,7 @@ public:
     bool begin();
     bool calibrate();
     //bool seekTarget(uint16_t target_mV);
-    bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false);
+    int16_t seekTarget(uint16_t target_mV, bool ultraFineTunning=false);
 
     
     uint32_t getTotalCalibrationSteps() const { return total_calibration_steps_; }

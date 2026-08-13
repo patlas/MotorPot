@@ -2,6 +2,7 @@
 // mydriver.cpp
 //----------------------------------------------------------------------------
 #include "mydriver.h"
+#include <cstdint>
 
 #define PRINT(x) Serial.println(x); Serial.flush()
 
@@ -243,15 +244,15 @@ bool MyDriver::calibrate()
     return true;
 }
 
-bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
+int16_t MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
 {
     if (isCallibrated == false)
     {
         calibrate();
     };
 
-    if (!stepper_driver_.isSetupAndCommunicating()) return false;
-    if (total_calibration_steps_ == 0) return false;
+    if (!stepper_driver_.isSetupAndCommunicating()) return -1;
+    if (total_calibration_steps_ == 0) return -1;
 
     if (target_mV > g_right_stall_adc_mv) target_mV = g_right_stall_adc_mv;
     if (target_mV < g_left_stall_adc_mv)  target_mV = g_left_stall_adc_mv;
@@ -276,7 +277,6 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
         {
             main_dir = MotorDirection::Right;
             uint32_t distance = target_steps_absolute - bounds_.current_steps;
-            
             if (distance > COARSE_MARGIN_STEPS) {
                 steps_to_execute_coarse = distance - COARSE_MARGIN_STEPS;
             } else {
@@ -287,7 +287,6 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
         {
             main_dir = MotorDirection::Left;
             uint32_t distance = bounds_.current_steps - target_steps_absolute;
-            
             if (distance > COARSE_MARGIN_STEPS) {
                 steps_to_execute_coarse = distance - COARSE_MARGIN_STEPS;
             } else {
@@ -302,7 +301,7 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
             if (!executeSteps(steps_to_execute_coarse, main_dir, bounds_, true, COARSE_DELAY_US)) {
                 PRINT("Zgrubny skok przerwany awaryjnie.");
             }
-            delay(50); 
+            delay(50);
         }
     }
     // =========================================================================
@@ -313,7 +312,7 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
 
     uint16_t current_mv = readAdcMv();
     uint16_t best_mv = current_mv;
-    
+
     // Obliczamy całkowity zakres napięcia z kalibracji, aby móc wyznaczyć błąd procentowy
     uint32_t total_voltage_span = g_right_stall_adc_mv - g_left_stall_adc_mv;
     if (total_voltage_span == 0) total_voltage_span = 1;
@@ -357,11 +356,11 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
         // Jeżeli po wykonaniu paczki 5 kroków kierunek uległby zmianie, oznacza to, że przeszliśmy 
         // na drugą stronę wartości zadanej. Sprawdzamy, która pozycja była lepsza i tam kończymy.
         MotorDirection next_dir = (new_mv < target_mV) ? MotorDirection::Right : MotorDirection::Left;
-        
+
         if (next_dir != tune_dir)
         {
             PRINT("Przekroczono cel (Overshot). Wybór optymalnego punktu końcowego...");
-            
+
             // Jeśli poprzednia pozycja dawała mniejszy błąd niż nowa (po 5 krokach), wycofujemy się o te 5 kroków
             if (current_err < new_err)
             {
@@ -388,7 +387,7 @@ bool MyDriver::seekTarget(uint16_t target_mV, bool ultraFineTunning=false)
 
     stepper_driver_.disable();
     adcOnOff(false);
-    return true;
+    return best_mv;
 }
 
 uint16_t MyDriver::readAdcMv()
