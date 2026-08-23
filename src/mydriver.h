@@ -39,12 +39,20 @@
 
 // --- Parametry silnika ---
 #define HOLD_CURRENT_PERCENT    10       // prąd spoczynkowy (%)
-#define STALL_GUARD_THRESHOLD   15      //15 próg SGTHRS (0-255); wyżej =czulej
+#define STALL_GUARD_THRESHOLD   40      //15 próg SGTHRS (0-255); wyżej =czulej
 #define TCOOLTHRS_VALUE         0xFFFFE  //0xFFFFF// musi być wysokie, być StallGuard aktywny
 
 // --- Konfiguracja Prędkości (Opóźnienia impulsów w mikrosekundach) ---
+/* IF PRINT enabled
 #define STEP_PULSE_DELAY_US      2//5//33  // Domyślna prędkość bazowa (np. dla kalibracji)
 #define COARSE_DELAY_US          5//33  // Prędkość fazy zgrubnej (mniejsza wartość = szybszy ruch)
+#define FINE_DELAY_US            15//100 // Prędkość fazy precyzyjnej (większa wartość = wolniejszy ruch)
+#define STALL_GUARD_THRESHOLD   15      //15 próg SGTHRS (0-255); wyżej =czulej
+
+*/
+
+#define STEP_PULSE_DELAY_US      3//5//33  // Domyślna prędkość bazowa (np. dla kalibracji)
+#define COARSE_DELAY_US          6//33  // Prędkość fazy zgrubnej (mniejsza wartość = szybszy ruch)
 #define FINE_DELAY_US            15//100 // Prędkość fazy precyzyjnej (większa wartość = wolniejszy ruch)
 
 // --- Parametry Algorytmu Pozycjonowania (Liczba kroków i limity) ---

@@ -29,11 +29,12 @@ SerialTerminal term(newlineChar, delimiterChar);
 void cmd_get_help()
 {
   Serial.println("Available commands:");
-
+  Serial.println("INIT - init TMC2209");
   Serial.println("REV - reverse output)");
   Serial.println("ON - enable output)");
   Serial.println("ADC - enable ADC");
   Serial.println("SETV - set target mV");
+  Serial.println("GETV - get mV");
   Serial.println("DBG - enable DBG");
   Serial.println("CAL - calibrate device");
 
@@ -208,6 +209,22 @@ void set_digipot_voltage(int16_t target_mV)
 }
 
 
+bool init()
+{
+  bool ret = false;
+  int idx = 0;
+  while(true)
+  {
+    ret = driver.begin();
+    if (ret) return true;
+    if (++idx > 50) 
+    {
+      return false;
+    }
+    delay(300);
+  }
+}
+
 
 void cmd_set_target_voltage()
 {
@@ -220,8 +237,8 @@ void cmd_set_target_voltage()
   if (atoi(voltage_str))
   {
     target_voltage = atoi(voltage_str);
+    init();
     set_digipot_voltage(target_voltage);
-    Serial.println("OK");
   } 
   else {
     Serial.println("ERROR: INVALID ARGUMENT");
@@ -235,6 +252,23 @@ void cmd_set_calibrate()
   Serial.println("OK");
 }
 
+void cmd_init()
+{
+  if (init()) 
+    Serial.println("OK");
+  else
+    Serial.println("ERR");
+  Serial.flush();
+}
+
+void cmd_get_target_voltage()
+{
+    driver.adcOnOff(true);
+    Serial.print("OK:");
+    Serial.println(driver.readAdcMv());
+    driver.adcOnOff(false);
+}
+
 
 
 
@@ -246,10 +280,12 @@ void setup()
   Serial.println("Hello");
 
   term.setDefaultHandler(cmd_unrecognized);
+  term.addCommand("INIT", cmd_init);
   term.addCommand("REV", cmd_set_rev);
   term.addCommand("ON", cmd_set_out);
   term.addCommand("ADC", cmd_set_adc);
   term.addCommand("SETV", cmd_set_target_voltage);
+  term.addCommand("GETV", cmd_get_target_voltage);
   term.addCommand("DBG", cmd_set_dbg);
   term.addCommand("CAL", cmd_set_calibrate);
 
@@ -269,16 +305,11 @@ void setup()
   // Ustawiamy maksymalny czas próbkowania (+31 cykli zegara ADC)
   VADC->GLOBICLASS[0] |= (0x1FU); 
 
-
-  bool ret = driver.begin();
-  Serial.print("Driver init: ");
-  Serial.println(ret);
-  Serial.flush();
-
+  
   // PATLAS - consider if only calibrate over cmd
-  ret = driver.calibrate();
-  Serial.print("Driver calibration: ");
-  Serial.println(ret);
+  // ret = driver.calibrate();
+  // Serial.print("Driver calibration: ");
+  // Serial.println(ret);
  /////////////////
 
   /* TO REMOVE

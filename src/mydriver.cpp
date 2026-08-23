@@ -4,7 +4,8 @@
 #include "mydriver.h"
 #include <cstdint>
 
-#define PRINT(x) Serial.println(x); Serial.flush()
+//#define PRINT(x) Serial.println(x); Serial.flush()
+#define PRINT(X)
 
 volatile bool g_isStall = false;
 uint16_t g_left_stall_adc_mv;  
@@ -39,6 +40,7 @@ MyDriver::MyDriver()
 
 void MyDriver::adcOnOff(bool on)
 {
+    PRINT("ADC "); PRINT(on);
     if (on == true)
     {
         digitalWrite(ADC_EN_OFF, LOW);
@@ -57,6 +59,8 @@ void MyDriver::adcOnOff(bool on)
 
 void MyDriver::outReverse(bool rev)
 {
+    PRINT("REV "); PRINT(rev);
+
     if (rev == true)
     {
         digitalWrite(OUT_REV_OFF, LOW);
@@ -75,6 +79,8 @@ void MyDriver::outReverse(bool rev)
 
 void MyDriver::outOnOff(bool on)
 {
+    PRINT("OUT "); PRINT(on);
+
     if (on == true)
     {
         digitalWrite(OUT_EN_OFF, LOW);
@@ -209,8 +215,8 @@ bool MyDriver::calibrate()
 
     stepper_driver_.enable();
     adcOnOff(true);
-    //outOnOff(false); // PATLAS - uncomment after testing
-    outOnOff(true); // PATLAS for testing - comment in release
+    outOnOff(false); // PATLAS - uncomment after testing
+    //outOnOff(true); // PATLAS for testing - comment in release
 
 
     bounds_.lower_bound = 0;
