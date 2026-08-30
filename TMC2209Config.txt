@@ -1,0 +1,121 @@
+Z XMC:
+[05][00][80][00][00][01][c0][f6]
+[05][00][90][00][01][1f][10][df] 
+[05][00][ec][10][01][00][53][97]
+[05][00][f0][c1][0d][00][24][06]
+[05][00][c2][00][00][00][00][45]
+[05][00][91][00][00][00][14][1f]
+[05][00][93][00][00][00][00][0f]
+[05][00][a2][00][00][00][00][0e]
+[05][00][94][00][00][00][00][34]
+[05][00][c0][00][00][00][00][8d]
+[05][00][c2][00][00][00][00][45] <--- tego brakuje w stm
+[05][00][81][00][00][00][02][19]
+[05][00][90][00][01][00][00][5b]
+[05][00][ec][10][01][00][50][d9]
+[05][00][f0][c1][09][00][24][45]
+[05][00][f0][c1][01][00][24][e7]
+
+[05][00][a2][00][00][27][10][21]
+[05][00][c0][00][00][00][28][e1]
+[05][00][90][00][01][00][03][15]
+
+[05][00][07][e6]
+[05][00][ec][10][01][00][50][d9]
+
+z STM:
+[05][00][80][00][00][01][c0][f6]
+[05][00][90][00][01][1b][03][07]
+[05][00][ec][14][00][00][53][52]
+[05][00][f0][c1][0d][00][24][06]
+[05][00][c2][00][00][00][00][45]
+[05][00][91][00][00][00][14][1f]
+[05][00][93][00][00][00][00][0f]
+[05][00][a2][00][00][00][00][0e]
+[05][00][94][00][00][00][20][28]
+[05][00][c0][00][00][00][fa][17]
+[05][00][81][00][00][00][02][19]
+
+
+
+
+
+setOperationModeToSerial(serial_address);
+	global_config_.bytes = 0;
+	global_config_.i_scale_analog = 0;
+	global_config_.pdn_disable = 1;
+	global_config_.mstep_reg_select = 1;
+	global_config_.multistep_filt = 1;
+	write(ADDRESS_GCONF, global_config_.bytes);
+	
+	
+setRegistersToDefaults();
+	driver_current_.bytes = 0;continuec
+	driver_current_.ihold = IHOLD_DEFAULT;
+	driver_current_.irun = IRUN_DEFAULT;
+	driver_current_.iholddelay = IHOLDDELAY_DEFAULT;
+	write(ADDRESS_IHOLD_IRUN, driver_current_.bytes);
+
+	chopper_config_.bytes = CHOPPER_CONFIG_DEFAULT;
+	chopper_config_.tbl = TBL_DEFAULT;
+	chopper_config_.hend = HEND_DEFAULT;
+	chopper_config_.hstart = HSTART_DEFAULT;
+	chopper_config_.toff = TOFF_DEFAULT;
+	write(ADDRESS_CHOPCONF, chopper_config_.bytes);
+
+	pwm_config_.bytes = PWM_CONFIG_DEFAULT;
+	write(ADDRESS_PWMCONF, pwm_config_.bytes);
+
+	cool_config_.bytes = COOLCONF_DEFAULT;
+	write(ADDRESS_COOLCONF, cool_config_.bytes);
+
+	write(ADDRESS_TPOWERDOWN, TPOWERDOWN_DEFAULT);
+	write(ADDRESS_TPWMTHRS, TPWMTHRS_DEFAULT);
+	write(ADDRESS_VACTUAL, VACTUAL_DEFAULT);
+	write(ADDRESS_TCOOLTHRS, TCOOLTHRS_DEFAULT);
+	write(ADDRESS_SGTHRS, SGTHRS_DEFAULT);
+	write(ADDRESS_COOLCONF, COOLCONF_DEFAULT);
+
+clearDriveError();
+	GlobalStatusUnion global_status_union;
+	global_status_union.bytes = 0;
+	global_status_union.global_status.drv_err = 1;
+	write(ADDRESS_GSTAT, global_status_union.bytes);
+	
+minimizeMotorCurrent();
+	driver_current_.irun = CURRENT_SETTING_MIN;
+  	driver_current_.ihold = CURRENT_SETTING_MIN;
+  	 write(ADDRESS_IHOLD_IRUN, driver_current_.bytes);
+
+	if (driver_current_.irun >= SEIMIN_UPPER_CURRENT_LIMIT)
+	{
+	cool_config_.seimin = SEIMIN_UPPER_SETTING;
+	}
+	else
+	{
+	cool_config_.seimin = SEIMIN_LOWER_SETTING;
+	}
+	if (cool_step_enabled_)
+	{
+	write(ADDRESS_COOLCONF, cool_config_.bytes);
+	}
+  	
+  	
+disable();
+	if (hardware_enable_pin_ >= 0)
+	{
+	digitalWrite(hardware_enable_pin_, HIGH);
+	}
+	chopper_config_.toff = TOFF_DISABLE;
+	write(ADDRESS_CHOPCONF, chopper_config_.bytes);
+
+
+disableAutomaticCurrentScaling();
+  pwm_config_.pwm_autoscale = STEPPER_DRIVER_FEATURE_OFF;
+  write(ADDRESS_PWMCONF, pwm_config_.bytes);
+
+
+disableAutomaticGradientAdaptation();
+  pwm_config_.pwm_autograd = STEPPER_DRIVER_FEATURE_OFF;
+  write(ADDRESS_PWMCONF, pwm_config_.bytes);
+
