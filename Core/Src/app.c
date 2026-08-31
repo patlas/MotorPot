@@ -4,6 +4,7 @@
 #include "stm32f4xx_hal.h"
 #include "terminal.h"
 #include "tmc2209.h"
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,7 +15,10 @@
 #define COARSE_DELAY_US 600U
 #define FINE_DELAY_US 15U
 #define COARSE_MARGIN_STEPS 15UL
-#define MAX_FINE_STEPS 1500U
+#define LOAD_SETTLE_DELAY_MS 100U
+#define FINE_PROBE_STEPS 10UL
+#define FINE_NEAR_TARGET_MV 10U
+#define FINE_BULK_RATIO_PCT 70U
 #define FINE_TUNE_TOLERANCE_PCT 2U
 
 typedef enum
@@ -28,6 +32,8 @@ typedef enum
   APP_SET_START,
   APP_SET_COARSE,
   APP_SET_SETTLE,
+  APP_SET_PRELOAD,
+  APP_SET_LOAD_SETTLE,
   APP_SET_FINE,
   APP_SET_FINISH,
   APP_ERROR
@@ -45,7 +51,10 @@ static uint16_t left_voltage;
 static uint16_t right_voltage;
 static uint32_t settle_deadline;
 static uint32_t operation_deadline;
-static uint16_t fine_iterations;
+static uint32_t fine_step_steps;
+static uint16_t fine_reference_voltage;
+static uint8_t fine_reference_valid;
+static uint8_t fine_probe_done;
 static StepDirection last_move_direction;
 static uint8_t fine_move_pending;
 static char command_line[TERMINAL_COMMAND_SIZE];
@@ -84,6 +93,52 @@ static void reverse_switch(uint8_t reverse)
   HAL_GPIO_WritePin(REV_OFF_GPIO_Port, REV_OFF_Pin, GPIO_PIN_RESET);
   relay_pulse(reverse ? REV_ON_GPIO_Port : REV_OFF_GPIO_Port,
               reverse ? REV_ON_Pin : REV_OFF_Pin);
+}
+
+static uint32_t target_voltage(void)
+{
+  int64_t target = requested_voltage;
+  if (target < 0) target = -target;
+  if ((uint32_t)target < left_voltage) return left_voltage;
+  if ((uint32_t)target > right_voltage) return right_voltage;
+  return (uint32_t)target;
+}
+
+static uint32_t calibration_steps_per_mv(void)
+{
+  uint32_t span = (uint32_t)(right_voltage - left_voltage);
+  uint32_t steps;
+
+  if (span == 0U || total_steps == 0U) return 1U;
+  steps = (total_steps + span / 2U) / span;
+  return steps == 0U ? 1U : steps;
+}
+
+static uint32_t bounded_move_steps(StepDirection direction, uint32_t requested_steps)
+{
+  uint32_t available = (direction == STEP_DIRECTION_RIGHT) ?
+                       (total_steps - current_steps) : current_steps;
+  return requested_steps < available ? requested_steps : available;
+}
+
+static void update_current_position(uint32_t executed)
+{
+  if (last_move_direction == STEP_DIRECTION_RIGHT)
+    current_steps = (current_steps + executed <= total_steps) ?
+                    current_steps + executed : total_steps;
+  else
+    current_steps = (executed <= current_steps) ? current_steps - executed : 0U;
+}
+
+static void begin_loaded_tuning(void)
+{
+  output_switch(1U);
+  settle_deadline = HAL_GetTick() + LOAD_SETTLE_DELAY_MS;
+  fine_step_steps = calibration_steps_per_mv();
+  fine_reference_valid = 0U;
+  fine_probe_done = 0U;
+  fine_move_pending = 0U;
+  app_state = APP_SET_LOAD_SETTLE;
 }
 
 static void clear_driver_diag(void)
@@ -137,11 +192,9 @@ static uint8_t start_set_position(void)
 {
   uint32_t span, target_position, distance;
   StepDirection direction;
-  int32_t target = requested_voltage;
+  uint32_t target;
   if (!calibrated || total_steps == 0U) return 0U;
-  if (target < 0) target = -target;
-  if ((uint32_t)target < left_voltage) target = left_voltage;
-  if ((uint32_t)target > right_voltage) target = right_voltage;
+  target = target_voltage();
   span = (uint32_t)(right_voltage - left_voltage);
   if (span == 0U) span = 1U;
   target_position = ((uint32_t)target - left_voltage) * total_steps / span;
@@ -163,9 +216,9 @@ static uint8_t start_set_position(void)
   last_move_direction = direction;
   if (distance == 0U)
   {
-    app_state = APP_SET_FINE;
-    fine_iterations = 0U;
     fine_move_pending = 0U;
+    settle_deadline = HAL_GetTick() + 50U;
+    app_state = APP_SET_SETTLE;
     return 1U;
   }
   if (StepEngine_Start(distance, direction, COARSE_DELAY_US, 1U) != HAL_OK) return 0U;
@@ -278,6 +331,14 @@ void App_Init(void)
 void App_Process(void)
 {
   uint32_t executed;
+  uint32_t target;
+  uint32_t error;
+  uint32_t distance;
+  uint32_t delta_voltage;
+  uint32_t measured_steps_per_mv;
+  uint32_t requested_steps;
+  uint64_t requested_steps64;
+  StepDirection direction;
   if (Terminal_GetCommand(command_line, sizeof(command_line))) handle_command(command_line);
 
   // if (app_state == APP_IDLE) return; // PATLAS
@@ -351,38 +412,113 @@ void App_Process(void)
   }
   else if (app_state == APP_SET_SETTLE && elapsed(settle_deadline))
   {
-    fine_iterations = 0U;
     fine_move_pending = 0U;
+    fine_step_steps = calibration_steps_per_mv();
+    fine_reference_valid = 0U;
+    fine_probe_done = 0U;
+    app_state = APP_SET_PRELOAD;
+  }
+  else if (app_state == APP_SET_PRELOAD)
+  {
+    if (fine_move_pending)
+    {
+      if (!StepEngine_IsDone()) return;
+      executed = StepEngine_GetExecutedSteps();
+      update_current_position(executed);
+      fine_move_pending = 0U;
+    }
+
+    target = target_voltage();
+    if (g_adc_mv <= target)
+    {
+      begin_loaded_tuning();
+    }
+    else if (!StepEngine_IsBusy())
+    {
+      direction = STEP_DIRECTION_LEFT;
+      distance = bounded_move_steps(direction, fine_step_steps);
+      if (distance == 0U)
+      {
+        fail_operation();
+        return;
+      }
+      last_move_direction = direction;
+      if (StepEngine_Start(distance, direction, FINE_DELAY_US, 0U) != HAL_OK)
+        fail_operation();
+      else
+        fine_move_pending = 1U;
+    }
+  }
+  else if (app_state == APP_SET_LOAD_SETTLE && elapsed(settle_deadline))
+  {
     app_state = APP_SET_FINE;
   }
   else if (app_state == APP_SET_FINE)
   {
-    if (fine_move_pending && StepEngine_IsDone())
+    if (fine_move_pending)
     {
+      if (!StepEngine_IsDone()) return;
       executed = StepEngine_GetExecutedSteps();
-      if (last_move_direction == STEP_DIRECTION_RIGHT)
-        current_steps = (current_steps + executed <= total_steps) ? current_steps + executed : total_steps;
-      else
-        current_steps = (executed <= current_steps) ? current_steps - executed : 0U;
+      update_current_position(executed);
       fine_move_pending = 0U;
+
+      if (fine_reference_valid)
+      {
+        delta_voltage = (g_adc_mv > fine_reference_voltage) ?
+                        (g_adc_mv - fine_reference_voltage) :
+                        (fine_reference_voltage - g_adc_mv);
+        if (delta_voltage > 0U && executed > 0U)
+        {
+          measured_steps_per_mv = (executed + delta_voltage / 2U) / delta_voltage;
+          if (measured_steps_per_mv == 0U) measured_steps_per_mv = 1U;
+          fine_step_steps = (fine_step_steps + measured_steps_per_mv + 1U) / 2U;
+          if (fine_step_steps == 0U) fine_step_steps = 1U;
+        }
+        fine_reference_valid = 0U;
+        fine_probe_done = 1U;
+      }
     }
-    uint32_t error = (g_adc_mv > (uint16_t)abs(requested_voltage)) ?
-                     (g_adc_mv - (uint16_t)abs(requested_voltage)) :
-                     ((uint16_t)abs(requested_voltage) - g_adc_mv);
-    uint32_t target = (uint32_t)abs(requested_voltage);
+
+    target = target_voltage();
+    error = (g_adc_mv > target) ? (g_adc_mv - target) : (target - g_adc_mv);
     if ((target == 0U && error == 0U) || (target > 0U && error * 100U <= target * FINE_TUNE_TOLERANCE_PCT) ||
-        fine_iterations >= MAX_FINE_STEPS)
+        (g_adc_mv < target && current_steps >= total_steps) ||
+        (g_adc_mv > target && current_steps == 0U))
     {
-      output_switch(1U);
       settle_deadline = HAL_GetTick() + 50U;
       app_state = APP_SET_FINISH;
     }
     else if (!StepEngine_IsBusy())
     {
-      StepDirection direction = g_adc_mv < target ? STEP_DIRECTION_RIGHT : STEP_DIRECTION_LEFT;
+      direction = g_adc_mv < target ? STEP_DIRECTION_RIGHT : STEP_DIRECTION_LEFT;
+      if (!fine_probe_done)
+      {
+        requested_steps = FINE_PROBE_STEPS;
+      }
+      else if (error > FINE_NEAR_TARGET_MV)
+      {
+        requested_steps64 = (uint64_t)error * fine_step_steps * FINE_BULK_RATIO_PCT / 100U;
+        requested_steps = requested_steps64 > UINT32_MAX ? UINT32_MAX :
+                          (uint32_t)requested_steps64;
+      }
+      else
+      {
+        requested_steps = fine_step_steps;
+      }
+      distance = bounded_move_steps(direction, requested_steps);
+      if (distance == 0U)
+      {
+        settle_deadline = HAL_GetTick() + 50U;
+        app_state = APP_SET_FINISH;
+        return;
+      }
       last_move_direction = direction;
-      if (StepEngine_Start(50U, direction, FINE_DELAY_US, 0U) != HAL_OK) fail_operation();
-      else { fine_move_pending = 1U; ++fine_iterations; }
+      fine_reference_voltage = g_adc_mv;
+      fine_reference_valid = 1U;
+      if (StepEngine_Start(distance, direction, FINE_DELAY_US, 0U) != HAL_OK)
+        fail_operation();
+      else
+        fine_move_pending = 1U;
     }
   }
   else if (app_state == APP_SET_FINISH && elapsed(settle_deadline))
