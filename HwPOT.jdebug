@@ -22,14 +22,14 @@ void OnProjectLoad (void) {
   //
   // Dialog-generated settings
   //
-  Project.AddPathSubstitute ("/home/patlas/Desktop/3DPOT/HW/STM32F401", "$(ProjectDir)");
-  Project.AddPathSubstitute ("/home/patlas/desktop/3dpot/hw/stm32f401", "$(ProjectDir)");
+  Project.AddPathSubstitute ("/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot", "$(ProjectDir)");
+  Project.AddPathSubstitute ("/home/patlas/desktop/phd_pomiary/digipot_v4/motorpot", "$(ProjectDir)");
   Project.SetDevice ("STM32F401CC");
   Project.SetHostIF ("USB", "260117921");
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("4 MHz");
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
-  Project.AddSvdFile ("/home/patlas/Desktop/3DPOT/HW/STM32F401/stm32f401.svd");
+  Project.AddSvdFile ("/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/stm32f401.svd");
   //
   // User settings
   //
