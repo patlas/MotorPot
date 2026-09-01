@@ -30,6 +30,7 @@ typedef enum
   APP_CAL_SETTLE_LEFT,
   APP_SET_PREPARE,
   APP_SET_START,
+  APP_SET_LOADED_START,
   APP_SET_COARSE,
   APP_SET_SETTLE,
   APP_SET_PRELOAD,
@@ -44,6 +45,7 @@ static uint8_t operation_setv;
 static uint8_t debug_mode;
 static uint32_t dbg_timeout=0;
 static uint8_t calibrated;
+static uint8_t output_is_on;
 static int32_t requested_voltage;
 static uint32_t current_steps;
 static uint32_t total_steps;
@@ -85,6 +87,7 @@ static void output_switch(uint8_t on)
   HAL_GPIO_WritePin(OUT_OFF_GPIO_Port, OUT_OFF_Pin, GPIO_PIN_RESET);
   relay_pulse(on ? OUT_ON_GPIO_Port : OUT_OFF_GPIO_Port,
               on ? OUT_ON_Pin : OUT_OFF_Pin);
+  output_is_on = on ? 1U : 0U;
 }
 
 static void reverse_switch(uint8_t reverse)
@@ -323,6 +326,8 @@ void App_Init(void)
   StepEngine_Init();
   app_state = APP_IDLE;
   calibrated = 0U;
+  output_is_on = 0U;
+  output_switch(0U);
   debug_mode = 0U;
   operation_setv = 0U;
   HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_SET);
@@ -390,14 +395,62 @@ void App_Process(void)
   else if (app_state == APP_SET_PREPARE && elapsed(settle_deadline))
   {
     adc_switch(1U);
-    output_switch(0U);
     reverse_switch(requested_voltage < 0);
     settle_deadline = HAL_GetTick() + 1000U;
-    app_state = APP_SET_START;
+    if (output_is_on)
+      app_state = APP_SET_LOADED_START;
+    else
+    {
+      output_switch(0U);
+      app_state = APP_SET_START;
+    }
   }
   else if (app_state == APP_SET_START && elapsed(settle_deadline))
   {
     if (!start_set_position()) fail_operation();
+  }
+  else if (app_state == APP_SET_LOADED_START && elapsed(settle_deadline))
+  {
+    target = target_voltage();
+    error = (g_adc_mv > target) ? (g_adc_mv - target) : (target - g_adc_mv);
+    fine_step_steps = calibration_steps_per_mv();
+    fine_reference_valid = 0U;
+    fine_probe_done = 0U;
+    fine_move_pending = 0U;
+
+    if ((target == 0U && error == 0U) ||
+        (target > 0U && error * 100U <= target * FINE_TUNE_TOLERANCE_PCT))
+    {
+      settle_deadline = HAL_GetTick() + 50U;
+      app_state = APP_SET_FINISH;
+    }
+    else
+    {
+      direction = g_adc_mv < target ? STEP_DIRECTION_RIGHT : STEP_DIRECTION_LEFT;
+      requested_steps64 = (uint64_t)error * fine_step_steps * FINE_BULK_RATIO_PCT / 100U;
+      requested_steps = requested_steps64 > UINT32_MAX ? UINT32_MAX :
+                        (uint32_t)requested_steps64;
+      if (requested_steps == 0U) requested_steps = 1U;
+      distance = bounded_move_steps(direction, requested_steps);
+      if (distance == 0U)
+      {
+        settle_deadline = HAL_GetTick() + 50U;
+        app_state = APP_SET_FINISH;
+        return;
+      }
+
+      TMC2209_Enable();
+      last_move_direction = direction;
+      fine_reference_voltage = g_adc_mv;
+      fine_reference_valid = 1U;
+      if (StepEngine_Start(distance, direction, FINE_DELAY_US, 0U) != HAL_OK)
+        fail_operation();
+      else
+      {
+        fine_move_pending = 1U;
+        app_state = APP_SET_FINE;
+      }
+    }
   }
   else if (app_state == APP_SET_COARSE && StepEngine_IsDone())
   {
