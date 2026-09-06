@@ -29,6 +29,8 @@ typedef enum
   APP_CAL_SETTLE_RIGHT,
   APP_CAL_SETTLE_LEFT,
   APP_SET_PREPARE,
+  APP_SET_REHO_PREPARE,
+  APP_SET_REHO_PROBE_WAIT,
   APP_SET_START,
   APP_SET_LOADED_START,
   APP_SET_COARSE,
@@ -59,6 +61,7 @@ static uint8_t fine_reference_valid;
 static uint8_t fine_probe_done;
 static StepDirection last_move_direction;
 static uint8_t fine_move_pending;
+static uint8_t reho_mode;
 static char command_line[TERMINAL_COMMAND_SIZE];
 
 static uint8_t elapsed(uint32_t deadline)
@@ -160,6 +163,7 @@ static void stop_operation(uint8_t send_reply)
   adc_switch(0U);
   app_state = APP_IDLE;
   operation_setv = 0U;
+  // reho_mode = 0U; // PATLAS
   if (send_reply) Terminal_Send("OK\r\n");
 }
 
@@ -241,7 +245,7 @@ static void handle_command(char *line)
   }
   if (strcmp(command, "HELP") == 0)
   {
-    Terminal_Send("Available commands:\r\nINIT\r\nREV <0|1>\r\nON <0|1>\r\nADC <0|1>\r\nSETV <mV>\r\nGETV\r\nDBG <0|1>\r\nCAL\r\nSETECHO <0|1>\r\nSTOP\r\n");
+    Terminal_Send("Available commands:\r\nINIT\r\nREV <0|1>\r\nON <0|1>\r\nADC <0|1>\r\nSETV <mV>\r\nGETV\r\nDBG <0|1>\r\nCAL\r\nREHO <0|1>\r\nSETECHO <0|1>\r\nSTOP\r\n");
   }
   else if (strcmp(command, "STOP") == 0)
   {
@@ -306,6 +310,13 @@ static void handle_command(char *line)
     if (argument == NULL) { Terminal_Send("ERROR: NO ARGUMENT\r\n"); return; }
     debug_mode = (uint8_t)(strtol(argument, NULL, 10) != 0);
     Terminal_Sendf("DBG = %u\r\n", debug_mode);
+  }
+  else if (strcmp(command, "REHO") == 0)
+  {
+    argument = strtok(NULL, " ");
+    if (argument == NULL) { Terminal_Send("ERROR: NO ARGUMENT\r\n"); return; }
+    reho_mode = (uint8_t)(strtol(argument, NULL, 10) != 0);
+    Terminal_Sendf("REHO = %u\r\n", reho_mode);
   }
   else if (strcmp(command, "SETECHO") == 0)
   {
@@ -396,14 +407,82 @@ void App_Process(void)
   {
     adc_switch(1U);
     reverse_switch(requested_voltage < 0);
-    settle_deadline = HAL_GetTick() + 1000U;
-    if (output_is_on)
+    settle_deadline = HAL_GetTick() + LOAD_SETTLE_DELAY_MS;
+    if (reho_mode)
+    {
+      output_switch(1U);
+      app_state = APP_SET_REHO_PREPARE;
+    }
+    else if (output_is_on)
       app_state = APP_SET_LOADED_START;
     else
     {
       output_switch(0U);
       app_state = APP_SET_START;
     }
+  }
+  else if (app_state == APP_SET_REHO_PREPARE && elapsed(settle_deadline))
+  {
+    target = target_voltage();
+    error = (g_adc_mv > target) ? (g_adc_mv - target) : (target - g_adc_mv);
+    if ((target == 0U && error == 0U) ||
+        (target > 0U && error * 100U <= target * FINE_TUNE_TOLERANCE_PCT))
+    {
+      settle_deadline = HAL_GetTick() + 50U;
+      app_state = APP_SET_FINISH;
+    }
+    else
+    {
+      direction = g_adc_mv < target ? STEP_DIRECTION_RIGHT : STEP_DIRECTION_LEFT;
+      uint32_t max_probe = total_steps * 5UL / 100UL;
+      if (max_probe < 10UL) max_probe = 10UL;
+      distance = bounded_move_steps(direction, max_probe);
+      if (distance == 0U)
+      {
+        settle_deadline = HAL_GetTick() + 50U;
+        app_state = APP_SET_FINISH;
+        return;
+      }
+      TMC2209_Enable();
+      last_move_direction = direction;
+      fine_reference_voltage = g_adc_mv;
+      fine_reference_valid = 1U;
+      if (StepEngine_Start(distance, direction, FINE_DELAY_US, 0U) != HAL_OK)
+        fail_operation();
+      else
+      {
+        fine_move_pending = 1U;
+        app_state = APP_SET_REHO_PROBE_WAIT;
+      }
+    }
+  }
+  else if (app_state == APP_SET_REHO_PROBE_WAIT)
+  {
+    if (!StepEngine_IsDone()) return;
+    executed = StepEngine_GetExecutedSteps();
+    update_current_position(executed);
+    fine_move_pending = 0U;
+
+    if (fine_reference_valid)
+    {
+      delta_voltage = (g_adc_mv > fine_reference_voltage) ?
+                      (g_adc_mv - fine_reference_voltage) :
+                      (fine_reference_voltage - g_adc_mv);
+      if (delta_voltage > 0U && executed > 0U)
+      {
+        measured_steps_per_mv = (executed + delta_voltage / 2U) / delta_voltage;
+        if (measured_steps_per_mv == 0U) measured_steps_per_mv = 1U;
+        fine_step_steps = measured_steps_per_mv;
+      }
+      else
+      {
+        fine_step_steps = calibration_steps_per_mv();
+      }
+      fine_reference_valid = 0U;
+      fine_probe_done = 1U;
+    }
+    settle_deadline = HAL_GetTick() + LOAD_SETTLE_DELAY_MS;
+    app_state = APP_SET_FINE;
   }
   else if (app_state == APP_SET_START && elapsed(settle_deadline))
   {
