@@ -577,8 +577,9 @@ void App_Process(void)
   else if (app_state == APP_SET_FINISH && elapsed(settle_deadline))
   {
     TMC2209_Disable();
+    uint16_t measV = g_adc_mv;
     adc_switch(0U);
-    Terminal_Sendf("OK:%u\r\n", g_adc_mv);
+    Terminal_Sendf("OK:%u\r\n", measV);
     app_state = APP_IDLE;
     operation_setv = 0U;
   }

@@ -14,13 +14,13 @@ OpenDocument="stm32f4xx_hal_gpio.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/
 OpenDocument="stm32f4xx_it.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/stm32f4xx_it.c", Line=204
 OpenDocument="startup_stm32f401xc.s", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/startup_stm32f401xc.s", Line=44
 OpenToolbar="Debug", Floating=0, x=0, y=0
-OpenWindow="Registers 1", DockArea=RIGHT, x=0, y=2, w=701, h=211, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, FilteredItems=[], RefreshRate=2
-OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=701, h=537, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=0, w=450, h=248, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
+OpenWindow="Registers 1", DockArea=RIGHT, x=0, y=2, w=701, h=217, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, FilteredItems=[], RefreshRate=2
+OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=701, h=527, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=0, w=450, h=252, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
 OpenWindow="Memory 1", DockArea=BOTTOM, x=1, y=0, w=666, h=318, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, EditorAddress=0x0
-OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=450, h=605, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Functions", DockArea=LEFT, x=0, y=2, w=450, h=144, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Find Results", DockArea=RIGHT, x=0, y=0, w=701, h=249, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=450, h=591, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Functions", DockArea=LEFT, x=0, y=2, w=450, h=154, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Find Results", DockArea=RIGHT, x=0, y=0, w=701, h=253, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=1888, h=318, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
 TableHeader="Vector Catches", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;500]
