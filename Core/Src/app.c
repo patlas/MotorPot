@@ -25,7 +25,7 @@
 typedef enum
 {
   APP_IDLE = 0,
-  APP_CAL_LEFT,
+  APP_CAL_HOME,
   APP_SET_PREPARE,
   APP_SET_LOAD_SETTLE,
   APP_SET_SAMPLE,
@@ -38,13 +38,13 @@ static uint8_t operation_setv;
 static uint8_t debug_mode;
 static uint32_t dbg_timeout=0;
 static uint8_t calibrated;
-static uint8_t right_limit_known;
+static uint8_t left_limit_known;
 static uint8_t output_is_on;
 static int32_t requested_voltage;
 static uint32_t current_steps;
 static uint32_t total_steps;
-static uint16_t left_voltage;
-static uint16_t right_voltage;
+static uint16_t minimum_voltage;
+static uint16_t maximum_voltage;
 static uint16_t measured_voltage;
 static uint32_t settle_deadline;
 static uint32_t operation_deadline;
@@ -107,8 +107,8 @@ static uint32_t target_voltage(void)
 {
   int64_t target = requested_voltage;
   if (target < 0) target = -target;
-  if ((uint32_t)target < left_voltage) return left_voltage;
-  if (right_limit_known && (uint32_t)target > right_voltage) return right_voltage;
+  if ((uint32_t)target < minimum_voltage) return minimum_voltage;
+  if (left_limit_known && (uint32_t)target > maximum_voltage) return maximum_voltage;
   return (uint32_t)target;
 }
 
@@ -123,10 +123,10 @@ static uint32_t bounded_move_steps(StepDirection direction, uint32_t requested_s
 {
   uint32_t available;
 
-  if (direction == STEP_DIRECTION_RIGHT)
+  if (direction == STEP_DIRECTION_LEFT)
   {
-    uint32_t right_bound = right_limit_known ? total_steps : CALIBRATION_MAX_STEPS;
-    available = (current_steps < right_bound) ? right_bound - current_steps : 0U;
+    uint32_t left_bound = left_limit_known ? total_steps : CALIBRATION_MAX_STEPS;
+    available = (current_steps < left_bound) ? left_bound - current_steps : 0U;
   }
   else
     available = current_steps;
@@ -136,12 +136,12 @@ static uint32_t bounded_move_steps(StepDirection direction, uint32_t requested_s
 
 static void update_current_position(uint32_t executed)
 {
-  if (last_move_direction == STEP_DIRECTION_RIGHT)
+  if (last_move_direction == STEP_DIRECTION_LEFT)
   {
-    uint32_t right_bound = right_limit_known ? total_steps : CALIBRATION_MAX_STEPS;
-    current_steps = (current_steps <= right_bound &&
-                     executed <= right_bound - current_steps) ?
-                    current_steps + executed : right_bound;
+    uint32_t left_bound = left_limit_known ? total_steps : CALIBRATION_MAX_STEPS;
+    current_steps = (current_steps <= left_bound &&
+                     executed <= left_bound - current_steps) ?
+                    current_steps + executed : left_bound;
   }
   else
     current_steps = (executed <= current_steps) ? current_steps - executed : 0U;
@@ -182,7 +182,7 @@ static void clear_driver_diag(void)
 
 static void stop_operation(uint8_t send_reply)
 {
-  if (app_state == APP_CAL_LEFT)
+  if (app_state == APP_CAL_HOME)
     calibrated = 0U;
 
   if (fine_move_pending)
@@ -212,7 +212,7 @@ static void fail_operation(void)
   output_switch(0U);
   adc_switch(0U);
   calibrated = 0U;
-  right_limit_known = 0U;
+  left_limit_known = 0U;
   fine_move_pending = 0U;
   fine_reference_valid = 0U;
   adc_sampling = 0U;
@@ -229,11 +229,11 @@ static uint8_t start_calibration(uint8_t for_setv)
 
   operation_setv = for_setv;
   calibrated = 0U;
-  right_limit_known = 0U;
+  left_limit_known = 0U;
   current_steps = 0U;
   total_steps = 0U;
-  left_voltage = 0U;
-  right_voltage = 0U;
+  minimum_voltage = 0U;
+  maximum_voltage = 0U;
   fine_step_steps = 0U;
   probe_step_steps = FINE_PROBE_STEPS;
   probe_total_steps = 0U;
@@ -245,14 +245,14 @@ static uint8_t start_calibration(uint8_t for_setv)
   operation_deadline = HAL_GetTick() + CALIBRATION_TIMEOUT_MS; // PATLAS
   clear_driver_diag();
   TMC2209_Enable();
-  if (StepEngine_Start(CALIBRATION_MAX_STEPS, STEP_DIRECTION_LEFT,
+  if (StepEngine_Start(CALIBRATION_MAX_STEPS, STEP_DIRECTION_RIGHT,
                        STEP_PULSE_DELAY_US, 1U) != HAL_OK)
   {
     TMC2209_Disable();
     operation_setv = 0U;
     return 0U;
   }
-  app_state = APP_CAL_LEFT;
+  app_state = APP_CAL_HOME;
   return 1U;
 }
 
@@ -263,8 +263,8 @@ static uint8_t start_voltage_adjustment(uint32_t target, uint32_t error)
   uint64_t requested_steps64;
   uint32_t requested_steps;
 
-  if (measured_voltage < target) direction = STEP_DIRECTION_RIGHT;
-  else direction = STEP_DIRECTION_LEFT;
+  if (measured_voltage < target) direction = STEP_DIRECTION_LEFT;
+  else direction = STEP_DIRECTION_RIGHT;
 
   if (!fine_probe_done)
     requested_steps = probe_step_steps;
@@ -279,8 +279,8 @@ static uint8_t start_voltage_adjustment(uint32_t target, uint32_t error)
   distance = bounded_move_steps(direction, requested_steps);
   if (distance == 0U)
   {
-    if ((direction == STEP_DIRECTION_LEFT && current_steps == 0U) ||
-        (direction == STEP_DIRECTION_RIGHT && right_limit_known &&
+    if ((direction == STEP_DIRECTION_RIGHT && current_steps == 0U) ||
+        (direction == STEP_DIRECTION_LEFT && left_limit_known &&
          current_steps >= total_steps))
       return 2U;
     return 0U;
@@ -411,17 +411,18 @@ void App_Init(void)
   StepEngine_Init();
   app_state = APP_IDLE;
   calibrated = 0U;
-  right_limit_known = 0U;
+  left_limit_known = 0U;
   output_is_on = 0U;
   output_switch(0U);
   adc_switch(0U);
+  reverse_switch(0U);
   debug_mode = 0U;
   operation_setv = 0U;
   reho_mode = 0U;
   current_steps = 0U;
   total_steps = 0U;
-  left_voltage = 0U;
-  right_voltage = 0U;
+  minimum_voltage = 0U;
+  maximum_voltage = 0U;
   measured_voltage = 0U;
   fine_step_steps = 0U;
   probe_step_steps = FINE_PROBE_STEPS;
@@ -461,7 +462,7 @@ void App_Process(void)
     return;
   }
 
-  if (app_state == APP_CAL_LEFT && StepEngine_IsDone())
+  if (app_state == APP_CAL_HOME && StepEngine_IsDone())
   {
     if (StepEngine_GetStopReason() != STEP_STOP_STALL)
     {
@@ -471,7 +472,7 @@ void App_Process(void)
 
     current_steps = 0U;
     total_steps = 0U;
-    right_limit_known = 0U;
+    left_limit_known = 0U;
     calibrated = 1U;
     TMC2209_Disable();
     adc_switch(0U);
@@ -562,19 +563,19 @@ void App_Process(void)
       fine_reference_valid = 0U;
     }
 
-    if (current_steps == 0U) left_voltage = measured_voltage;
+    if (current_steps == 0U) minimum_voltage = measured_voltage;
     if (fine_move_stalled)
     {
-      if (last_move_direction == STEP_DIRECTION_RIGHT)
+      if (last_move_direction == STEP_DIRECTION_LEFT)
       {
         total_steps = current_steps;
-        right_voltage = measured_voltage;
-        right_limit_known = 1U;
+        maximum_voltage = measured_voltage;
+        left_limit_known = 1U;
       }
       else
       {
         current_steps = 0U;
-        left_voltage = measured_voltage;
+        minimum_voltage = measured_voltage;
       }
       fine_move_stalled = 0U;
     }
