@@ -270,6 +270,7 @@ static void handle_command(char *line)
     }
     else
     {
+      TMC2209_Init(); // PATLAS for safety reason always init before setv
       app_state = APP_SET_PREPARE;
       settle_deadline = HAL_GetTick() + 1000U;
     }

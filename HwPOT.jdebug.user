@@ -4,24 +4,24 @@ Breakpoint=/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/adc.c:8
 Breakpoint=/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/app.c:385, State=BP_STATE_DISABLED
 Breakpoint=/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/TMC2209.cpp:769, State=BP_STATE_DISABLED
 Breakpoint=/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/tmc2209_wrapper.cpp:25, State=BP_STATE_DISABLED
-OpenDocument="stm32f4xx_hal_uart.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c", Line=1125
+OpenDocument="main.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/main.c", Line=68
 OpenDocument="TMC2209.cpp", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/TMC2209.cpp", Line=689
 OpenDocument="tmc2209_wrapper.cpp", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/tmc2209_wrapper.cpp", Line=2
-OpenDocument="main.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/main.c", Line=53
+OpenDocument="stm32f4xx_hal_uart.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c", Line=1125
 OpenDocument="adc.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/adc.c", Line=89
 OpenDocument="app.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/app.c", Line=161
 OpenDocument="stm32f4xx_hal_gpio.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c", Line=471
 OpenDocument="stm32f4xx_it.c", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/Core/Src/stm32f4xx_it.c", Line=204
-OpenDocument="startup_stm32f401xc.s", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/startup_stm32f401xc.s", Line=44
+OpenDocument="startup_stm32f401xc.s", FilePath="/home/patlas/Desktop/PHD_POMIARY/DIGIPOT_V4/MotorPot/startup_stm32f401xc.s", Line=56
 OpenToolbar="Debug", Floating=0, x=0, y=0
-OpenWindow="Registers 1", DockArea=RIGHT, x=0, y=2, w=701, h=217, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, FilteredItems=[], RefreshRate=2
-OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=701, h=527, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=0, w=450, h=252, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
-OpenWindow="Memory 1", DockArea=BOTTOM, x=1, y=0, w=666, h=318, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, EditorAddress=0x0
-OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=450, h=591, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Functions", DockArea=LEFT, x=0, y=2, w=450, h=154, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Find Results", DockArea=RIGHT, x=0, y=0, w=701, h=253, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=1888, h=318, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Registers 1", DockArea=RIGHT, x=0, y=2, w=701, h=84, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, FilteredItems=[], RefreshRate=2
+OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=701, h=195, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=0, w=450, h=176, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
+OpenWindow="Memory 1", DockArea=BOTTOM, x=1, y=0, w=666, h=272, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, EditorAddress=0x0
+OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=450, h=98, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Functions", DockArea=LEFT, x=0, y=2, w=450, h=97, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Find Results", DockArea=RIGHT, x=0, y=0, w=701, h=92, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=694, h=272, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
 TableHeader="Vector Catches", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;500]
 TableHeader="Break & Tracepoints", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;371;385]
