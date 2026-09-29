@@ -61,9 +61,9 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOC
 #define ADC_Pin GPIO_PIN_1
 #define ADC_GPIO_Port GPIOA
-#define OUT_ON_Pin GPIO_PIN_4
+#define OUT_ON_Pin GPIO_PIN_5
 #define OUT_ON_GPIO_Port GPIOB
-#define OUT_OFF_Pin GPIO_PIN_5
+#define OUT_OFF_Pin GPIO_PIN_4
 #define OUT_OFF_GPIO_Port GPIOB
 #define REV_ON_Pin GPIO_PIN_14
 #define REV_ON_GPIO_Port GPIOB
