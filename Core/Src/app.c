@@ -58,6 +58,7 @@ static StepDirection last_move_direction;
 static uint8_t fine_move_pending;
 static uint8_t fine_move_stalled;
 static uint32_t fine_move_executed;
+/* Deprecated: retained only to preserve the REHO command response. */
 static uint8_t reho_mode;
 static uint8_t adc_sampling;
 static uint8_t adc_sample_count;
@@ -287,6 +288,8 @@ static uint8_t start_voltage_adjustment(uint32_t target, uint32_t error)
     return 0U;
   }
 
+  if (!fine_probe_done && probe_total_steps > 0U && direction != last_move_direction)
+    probe_total_steps = 0U;
   last_move_direction = direction;
   if (!fine_probe_done && fine_step_steps == 0U && probe_total_steps == 0U)
     probe_reference_voltage = measured_voltage;
@@ -315,7 +318,7 @@ static void handle_command(char *line)
   }
   if (strcmp(command, "HELP") == 0)
   {
-    Terminal_Send("Available commands:\r\nINIT\r\nREV <0|1>\r\nON <0|1>\r\nADC <0|1>\r\nSETV <mV>\r\nGETV\r\nDBG <0|1>\r\nCAL\r\nREHO <0|1>\r\nSETECHO <0|1>\r\nSTOP\r\n");
+    Terminal_Send("Available commands:\r\nINIT\r\nREV <0|1>\r\nON <0|1>\r\nADC <0|1>\r\nSETV <mV>\r\nGETV\r\nDBG <0|1>\r\nCAL\r\nREHO <0|1> (deprecated)\r\nSETECHO <0|1>\r\nSTOP\r\n");
   }
   else if (strcmp(command, "STOP") == 0)
   {
@@ -503,7 +506,8 @@ void App_Process(void)
 
     probe_step_steps = FINE_PROBE_STEPS;
     probe_total_steps = 0U;
-    fine_probe_done = (!reho_mode && fine_step_steps > 0U) ? 1U : 0U;
+    fine_step_steps = 0U;
+    fine_probe_done = 0U;
     fine_reference_valid = 0U;
     fine_move_pending = 0U;
     fine_move_stalled = 0U;
@@ -522,9 +526,26 @@ void App_Process(void)
 
     if (fine_reference_valid)
     {
+      /* The ADC measures magnitude, regardless of the output polarity. */
+      if ((last_move_direction == STEP_DIRECTION_LEFT &&
+           (uint32_t)measured_voltage + FINE_MIN_DELTA_MV <= fine_reference_voltage) ||
+          (last_move_direction == STEP_DIRECTION_RIGHT &&
+           (uint32_t)fine_reference_voltage + FINE_MIN_DELTA_MV <= measured_voltage))
+      {
+        fail_operation();
+        return;
+      }
       if (!fine_probe_done && fine_step_steps == 0U)
       {
         probe_total_steps += fine_move_executed;
+        if ((last_move_direction == STEP_DIRECTION_LEFT &&
+             (uint32_t)measured_voltage + FINE_MIN_DELTA_MV <= probe_reference_voltage) ||
+            (last_move_direction == STEP_DIRECTION_RIGHT &&
+             (uint32_t)probe_reference_voltage + FINE_MIN_DELTA_MV <= measured_voltage))
+        {
+          fail_operation();
+          return;
+        }
         delta_voltage = (measured_voltage > probe_reference_voltage) ?
                         (measured_voltage - probe_reference_voltage) :
                         (probe_reference_voltage - measured_voltage);
