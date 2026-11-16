@@ -39,12 +39,6 @@ static uint8_t debug_mode;
 static uint32_t dbg_timeout=0;
 static uint8_t calibrated;
 static uint8_t left_limit_known;
-static uint8_t output_is_on;
-static uint8_t output_state_known;
-static uint8_t adc_is_on;
-static uint8_t adc_state_known;
-static uint8_t reverse_is_on;
-static uint8_t reverse_state_known;
 static int32_t requested_voltage;
 static uint32_t current_steps;
 static uint32_t total_steps;
@@ -86,40 +80,28 @@ static void relay_pulse(GPIO_TypeDef *port, uint16_t pin)
 static void adc_switch(uint8_t on)
 {
   on = on ? 1U : 0U;
-  if (adc_state_known && adc_is_on == on) return;
-
   HAL_GPIO_WritePin(ADC_ON_GPIO_Port, ADC_ON_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(ADC_OFF_GPIO_Port, ADC_OFF_Pin, GPIO_PIN_RESET);
   relay_pulse(on ? ADC_ON_GPIO_Port : ADC_OFF_GPIO_Port,
               on ? ADC_ON_Pin : ADC_OFF_Pin);
-  adc_is_on = on;
-  adc_state_known = 1U;
 }
 
 static void output_switch(uint8_t on)
 {
   on = on ? 1U : 0U;
-  if (output_state_known && output_is_on == on) return;
-
   HAL_GPIO_WritePin(OUT_ON_GPIO_Port, OUT_ON_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(OUT_OFF_GPIO_Port, OUT_OFF_Pin, GPIO_PIN_RESET);
   relay_pulse(on ? OUT_ON_GPIO_Port : OUT_OFF_GPIO_Port,
               on ? OUT_ON_Pin : OUT_OFF_Pin);
-  output_is_on = on;
-  output_state_known = 1U;
 }
 
 static void reverse_switch(uint8_t reverse)
 {
   reverse = reverse ? 1U : 0U;
-  if (reverse_state_known && reverse_is_on == reverse) return;
-
   HAL_GPIO_WritePin(REV_ON_GPIO_Port, REV_ON_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(REV_OFF_GPIO_Port, REV_OFF_Pin, GPIO_PIN_RESET);
   relay_pulse(reverse ? REV_ON_GPIO_Port : REV_OFF_GPIO_Port,
               reverse ? REV_ON_Pin : REV_OFF_Pin);
-  reverse_is_on = reverse;
-  reverse_state_known = 1U;
 }
 
 static uint32_t target_voltage(void)
@@ -358,6 +340,7 @@ static void handle_command(char *line)
     }
     else
     {
+      output_switch(0U);
       if (TMC2209_Init() != HAL_OK) { Terminal_Send("ERROR\r\n"); return; }
       operation_setv = 1U;
       app_state = APP_SET_PREPARE;
@@ -429,12 +412,6 @@ void App_Init(void)
   app_state = APP_IDLE;
   calibrated = 0U;
   left_limit_known = 0U;
-  output_state_known = 0U;
-  adc_state_known = 0U;
-  reverse_state_known = 0U;
-  output_is_on = 0U;
-  adc_is_on = 0U;
-  reverse_is_on = 0U;
   output_switch(0U);
   adc_switch(0U);
   reverse_switch(0U);
@@ -519,14 +496,8 @@ void App_Process(void)
       return;
     }
 
-    {
-      uint8_t requested_reverse = requested_voltage < 0 ? 1U : 0U;
-      if (!reverse_state_known || reverse_is_on != requested_reverse)
-      {
-        output_switch(0U);
-        reverse_switch(requested_reverse);
-      }
-    }
+    output_switch(0U);
+    reverse_switch(requested_voltage < 0 ? 1U : 0U);
     output_switch(1U);
     adc_switch(1U);
 
