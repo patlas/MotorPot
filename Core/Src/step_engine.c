@@ -169,6 +169,10 @@ void StepEngine_TIM2_IRQHandler(void)
 uint8_t StepEngine_IsBusy(void) { return step_busy; }
 uint8_t StepEngine_IsDone(void) { return step_done; }
 uint32_t StepEngine_GetExecutedSteps(void) { return step_executed; }
+uint32_t StepEngine_GetProgressSteps(void)
+{
+  return step_busy ? __HAL_TIM_GET_COUNTER(&htim2) : step_executed;
+}
 StepStopReason StepEngine_GetStopReason(void) { return step_reason; }
 
 void PWM_DynamicRamp_Process(volatile uint8_t *p_trigger_flag)

@@ -29,6 +29,7 @@ void StepEngine_TIM2_IRQHandler(void);
 uint8_t StepEngine_IsBusy(void);
 uint8_t StepEngine_IsDone(void);
 uint32_t StepEngine_GetExecutedSteps(void);
+uint32_t StepEngine_GetProgressSteps(void);
 StepStopReason StepEngine_GetStopReason(void);
 void StepEngine_SetStepTimeUs(uint32_t edge_interval_us);
 void StallGuard_Masking_Process(void);

@@ -14,10 +14,9 @@
 #define STEP_PULSE_DELAY_US 80U // TO JEST TARGET SPEED ale się nie ustawia -> set pwm ramp TOOD PATLAS
 #define FINE_DELAY_US 15U
 #define LOAD_SETTLE_DELAY_MS 100U
-#define FINE_PROBE_STEPS 10UL
-#define FINE_PROBE_MAX_STEPS 640UL
-#define FINE_MIN_DELTA_MV 3U
-#define FINE_BULK_RATIO_PCT 70U
+#define SET_MOVING_SAMPLE_STEPS 1600UL /* Half a turn at 200 steps/rev, 16 microsteps. */
+#define SET_FINE_STEPS 10UL
+#define SET_FINE_THRESHOLD_PCT 80U
 #define FINE_TUNE_TOLERANCE_PCT 2U
 #define ADC_AVERAGE_SAMPLES 16U
 #define ADC_SAMPLE_INTERVAL_MS 2U
@@ -30,6 +29,7 @@ typedef enum
   APP_SET_LOAD_SETTLE,
   APP_SET_SAMPLE,
   APP_SET_FINE,
+  APP_SET_CONTINUOUS,
   APP_SET_FINISH
 } AppState;
 
@@ -47,13 +47,7 @@ static uint16_t maximum_voltage;
 static uint16_t measured_voltage;
 static uint32_t settle_deadline;
 static uint32_t operation_deadline;
-static uint32_t fine_step_steps;
-static uint32_t probe_step_steps;
-static uint32_t probe_total_steps;
-static uint16_t fine_reference_voltage;
-static uint16_t probe_reference_voltage;
-static uint8_t fine_reference_valid;
-static uint8_t fine_probe_done;
+static uint32_t next_moving_sample;
 static StepDirection last_move_direction;
 static uint8_t fine_move_pending;
 static uint8_t fine_move_stalled;
@@ -201,7 +195,6 @@ static void stop_operation(uint8_t send_reply)
   app_state = APP_IDLE;
   operation_setv = 0U;
   fine_move_pending = 0U;
-  fine_reference_valid = 0U;
   adc_sampling = 0U;
   // reho_mode = 0U; // PATLAS
   if (send_reply) Terminal_Send("OK\r\n");
@@ -216,7 +209,6 @@ static void fail_operation(void)
   calibrated = 0U;
   left_limit_known = 0U;
   fine_move_pending = 0U;
-  fine_reference_valid = 0U;
   adc_sampling = 0U;
   app_state = APP_IDLE;
   operation_setv = 0U;
@@ -236,10 +228,6 @@ static uint8_t start_calibration(uint8_t for_setv)
   total_steps = 0U;
   minimum_voltage = 0U;
   maximum_voltage = 0U;
-  fine_step_steps = 0U;
-  probe_step_steps = FINE_PROBE_STEPS;
-  probe_total_steps = 0U;
-  fine_reference_valid = 0U;
   fine_move_pending = 0U;
   fine_move_stalled = 0U;
   fine_move_executed = 0U;
@@ -258,51 +246,36 @@ static uint8_t start_calibration(uint8_t for_setv)
   return 1U;
 }
 
-static uint8_t start_voltage_adjustment(uint32_t target, uint32_t error)
+static uint8_t start_voltage_adjustment(uint32_t target)
 {
-  uint32_t distance;
-  StepDirection direction;
-  uint64_t requested_steps64;
-  uint32_t requested_steps;
+  StepDirection direction = measured_voltage < target ? STEP_DIRECTION_LEFT : STEP_DIRECTION_RIGHT;
+  uint32_t distance = bounded_move_steps(direction, SET_FINE_STEPS);
 
-  if (measured_voltage < target) direction = STEP_DIRECTION_LEFT;
-  else direction = STEP_DIRECTION_RIGHT;
-
-  if (!fine_probe_done)
-    requested_steps = probe_step_steps;
-  else
-  {
-    requested_steps64 = (uint64_t)error * fine_step_steps * FINE_BULK_RATIO_PCT / 100U;
-    requested_steps = requested_steps64 > UINT32_MAX ? UINT32_MAX :
-                      (uint32_t)requested_steps64;
-    if (requested_steps == 0U) requested_steps = 1U;
-  }
-
-  distance = bounded_move_steps(direction, requested_steps);
   if (distance == 0U)
-  {
-    if ((direction == STEP_DIRECTION_RIGHT && current_steps == 0U) ||
-        (direction == STEP_DIRECTION_LEFT && left_limit_known &&
-         current_steps >= total_steps))
-      return 2U;
-    return 0U;
-  }
-
-  if (!fine_probe_done && probe_total_steps > 0U && direction != last_move_direction)
-    probe_total_steps = 0U;
+    return 2U;
   last_move_direction = direction;
-  if (!fine_probe_done && fine_step_steps == 0U && probe_total_steps == 0U)
-    probe_reference_voltage = measured_voltage;
-  fine_reference_voltage = measured_voltage;
-  fine_reference_valid = 1U;
   fine_move_stalled = 0U;
-  fine_move_executed = 0U;
   clear_driver_diag();
   TMC2209_Enable();
   if (StepEngine_Start(distance, direction, FINE_DELAY_US, 1U) != HAL_OK)
     return 0U;
   fine_move_pending = 1U;
   app_state = APP_SET_FINE;
+  return 1U;
+}
+
+static uint8_t start_continuous_move(void)
+{
+  uint32_t distance = bounded_move_steps(STEP_DIRECTION_LEFT, CALIBRATION_MAX_STEPS);
+  if (distance == 0U) return 0U;
+  last_move_direction = STEP_DIRECTION_LEFT;
+  next_moving_sample = SET_MOVING_SAMPLE_STEPS;
+  clear_driver_diag();
+  TMC2209_Enable();
+  if (StepEngine_Start(distance, STEP_DIRECTION_LEFT, FINE_DELAY_US, 1U) != HAL_OK)
+    return 0U;
+  fine_move_pending = 1U;
+  app_state = APP_SET_CONTINUOUS;
   return 1U;
 }
 
@@ -337,19 +310,7 @@ static void handle_command(char *line)
     argument = strtok(NULL, " ");
     if (argument == NULL) { Terminal_Send("ERROR\r\n"); return; }
     requested_voltage = strtol(argument, NULL, 10);
-    if (!calibrated)
-    {
-      if (!start_calibration(1U)) Terminal_Send("ERROR\r\n");
-    }
-    else
-    {
-      output_switch(0U);
-      if (TMC2209_Init() != HAL_OK) { Terminal_Send("ERROR\r\n"); return; }
-      operation_setv = 1U;
-      app_state = APP_SET_PREPARE;
-      settle_deadline = HAL_GetTick();
-      operation_deadline = HAL_GetTick() + CALIBRATION_TIMEOUT_MS;
-    }
+    if (!start_calibration(1U)) Terminal_Send("ERROR\r\n");
   }
   else if (strcmp(command, "GETV") == 0)
   {
@@ -426,11 +387,6 @@ void App_Init(void)
   minimum_voltage = 0U;
   maximum_voltage = 0U;
   measured_voltage = 0U;
-  fine_step_steps = 0U;
-  probe_step_steps = FINE_PROBE_STEPS;
-  probe_total_steps = 0U;
-  fine_reference_valid = 0U;
-  fine_probe_done = 0U;
   fine_move_pending = 0U;
   fine_move_stalled = 0U;
   fine_move_executed = 0U;
@@ -442,8 +398,6 @@ void App_Process(void)
 {
   uint32_t target;
   uint32_t error;
-  uint32_t delta_voltage;
-  uint32_t measured_steps_per_mv;
   uint8_t start_result;
 
   if (Terminal_GetCommand(command_line, sizeof(command_line))) handle_command(command_line);
@@ -501,14 +455,9 @@ void App_Process(void)
 
     output_switch(0U);
     reverse_switch(requested_voltage < 0 ? 1U : 0U);
-    output_switch(1U);
     adc_switch(1U);
+    output_switch(1U);
 
-    probe_step_steps = FINE_PROBE_STEPS;
-    probe_total_steps = 0U;
-    fine_step_steps = 0U;
-    fine_probe_done = 0U;
-    fine_reference_valid = 0U;
     fine_move_pending = 0U;
     fine_move_stalled = 0U;
     fine_move_executed = 0U;
@@ -523,65 +472,6 @@ void App_Process(void)
   else if (app_state == APP_SET_SAMPLE)
   {
     if (!collect_adc_average()) return;
-
-    if (fine_reference_valid)
-    {
-      /* The ADC measures magnitude, regardless of the output polarity. */
-      if ((last_move_direction == STEP_DIRECTION_LEFT &&
-           (uint32_t)measured_voltage + FINE_MIN_DELTA_MV <= fine_reference_voltage) ||
-          (last_move_direction == STEP_DIRECTION_RIGHT &&
-           (uint32_t)fine_reference_voltage + FINE_MIN_DELTA_MV <= measured_voltage))
-      {
-        fail_operation();
-        return;
-      }
-      if (!fine_probe_done && fine_step_steps == 0U)
-      {
-        probe_total_steps += fine_move_executed;
-        if ((last_move_direction == STEP_DIRECTION_LEFT &&
-             (uint32_t)measured_voltage + FINE_MIN_DELTA_MV <= probe_reference_voltage) ||
-            (last_move_direction == STEP_DIRECTION_RIGHT &&
-             (uint32_t)probe_reference_voltage + FINE_MIN_DELTA_MV <= measured_voltage))
-        {
-          fail_operation();
-          return;
-        }
-        delta_voltage = (measured_voltage > probe_reference_voltage) ?
-                        (measured_voltage - probe_reference_voltage) :
-                        (probe_reference_voltage - measured_voltage);
-        if (delta_voltage >= FINE_MIN_DELTA_MV && probe_total_steps > 0U)
-        {
-          fine_step_steps = (probe_total_steps + delta_voltage / 2U) / delta_voltage;
-          if (fine_step_steps == 0U) fine_step_steps = 1U;
-          fine_probe_done = 1U;
-          probe_total_steps = 0U;
-        }
-      }
-      else
-      {
-        delta_voltage = (measured_voltage > fine_reference_voltage) ?
-                        (measured_voltage - fine_reference_voltage) :
-                        (fine_reference_voltage - measured_voltage);
-        if (delta_voltage >= FINE_MIN_DELTA_MV && fine_move_executed > 0U)
-        {
-          measured_steps_per_mv = (fine_move_executed + delta_voltage / 2U) /
-                                  delta_voltage;
-          if (measured_steps_per_mv == 0U) measured_steps_per_mv = 1U;
-          fine_step_steps = (fine_step_steps == 0U) ? measured_steps_per_mv :
-                            (fine_step_steps + measured_steps_per_mv + 1U) / 2U;
-          if (fine_step_steps == 0U) fine_step_steps = 1U;
-          fine_probe_done = 1U;
-        }
-      }
-
-      if (!fine_probe_done && probe_step_steps < FINE_PROBE_MAX_STEPS)
-      {
-        probe_step_steps *= 2U;
-        if (probe_step_steps > FINE_PROBE_MAX_STEPS)
-          probe_step_steps = FINE_PROBE_MAX_STEPS;
-      }
-      fine_reference_valid = 0U;
-    }
 
     if (current_steps == 0U) minimum_voltage = measured_voltage;
     if (fine_move_stalled)
@@ -610,7 +500,11 @@ void App_Process(void)
     }
     else
     {
-      start_result = start_voltage_adjustment(target, error);
+      if (current_steps == 0U && measured_voltage < target &&
+          (uint64_t)measured_voltage * 100U < (uint64_t)target * SET_FINE_THRESHOLD_PCT)
+        start_result = start_continuous_move() ? 1U : 0U;
+      else
+        start_result = start_voltage_adjustment(target);
       if (start_result == 2U)
       {
         settle_deadline = HAL_GetTick() + 50U;
@@ -618,6 +512,31 @@ void App_Process(void)
       }
       else if (start_result == 0U)
         fail_operation();
+    }
+  }
+  else if (app_state == APP_SET_CONTINUOUS)
+  {
+    if (!StepEngine_IsDone() && StepEngine_GetProgressSteps() >= next_moving_sample)
+    {
+      uint32_t progress = StepEngine_GetProgressSteps();
+      next_moving_sample = progress + SET_MOVING_SAMPLE_STEPS;
+      target = target_voltage();
+      if ((uint64_t)g_adc_mv * 100U >= (uint64_t)target * SET_FINE_THRESHOLD_PCT)
+        StepEngine_Stop();
+    }
+    if (StepEngine_IsDone())
+    {
+      StepStopReason reason = StepEngine_GetStopReason();
+      fine_move_pending = 0U;
+      if (reason != STEP_STOP_ABORTED && reason != STEP_STOP_STALL && reason != STEP_STOP_COMPLETE)
+      {
+        fail_operation();
+        return;
+      }
+      update_current_position(StepEngine_GetExecutedSteps());
+      fine_move_stalled = (reason == STEP_STOP_STALL) ? 1U : 0U;
+      settle_deadline = HAL_GetTick() + LOAD_SETTLE_DELAY_MS;
+      app_state = APP_SET_LOAD_SETTLE;
     }
   }
   else if (app_state == APP_SET_FINE && fine_move_pending && StepEngine_IsDone())
